@@ -1,9 +1,0 @@
-2020-12-11 21:02:49:552 ERROR [main][PersistentStateModel.java:58] - You have to open all column families. Column families not opened: log
-org.rocksdb.RocksDBException: You have to open all column families. Column families not opened: log
-	at org.rocksdb.TransactionDB.open(Native Method) ~[rocksdbjni-6.13.3.jar:?]
-	at org.rocksdb.TransactionDB.open(TransactionDB.java:46) ~[rocksdbjni-6.13.3.jar:?]
-	at org.top.models.PersistentStateModel.init(PersistentStateModel.java:55) [classes/:?]
-	at org.top.models.PersistentStateModel.<clinit>(PersistentStateModel.java:47) [classes/:?]
-	at org.top.core.machine.StateMachineHandlerImpl.<init>(StateMachineHandlerImpl.java:28) [classes/:?]
-	at org.top.core.ServerStateTransformerStarter.start(ServerStateTransformerStarter.java:18) [classes/:?]
-	at org.top.Test1.main(Test1.java:20) [classes/:?]
