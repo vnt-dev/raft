@@ -12,10 +12,6 @@ import java.io.File;
 @Slf4j
 public class App {
     public static void main(String[] args) {
-        File dataPath = new File("./data");
-        if (!dataPath.exists()) {
-            dataPath.mkdir();
-        }
         new ServerStateTransformerStarter().start();
     }
 }
