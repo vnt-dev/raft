@@ -39,21 +39,17 @@ public class PersistentStateModel {
     private final static byte[] VOTED_FOR_KEY = "voted_for".getBytes(StandardCharsets.UTF_8);
     private final static byte[] LOG = "log".getBytes(StandardCharsets.UTF_8);
     private static TransactionDB rocksDB;
-    private static PersistentStateModel model = new PersistentStateModel();
 
     static {
         RocksDB.loadLibrary();
         init();
     }
 
+    private static PersistentStateModel model = new PersistentStateModel();
+
     private Serializer<LogEntry> logEntrySerializer = new ProtoBufSerializer<>();
 
     private PersistentStateModel() {
-        try {
-            log.info("初始化信息，任期：{}", getCurrentTerm());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     private static void init() {
