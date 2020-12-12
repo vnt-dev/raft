@@ -62,19 +62,6 @@ public class PersistentStateModel {
 
     private PersistentStateModel() {
         try {
-//            byte[] currentTermBytes = rocksDB.get(CURRENT_TERM_KEY);
-//            if (currentTermBytes == null) {
-//                rocksDB.put(CURRENT_TERM_KEY, toBytes(0));
-//            }
-//            byte[] lastIndex = rocksDB.get(LAST_INDEX_KEY);
-//            if (lastIndex == null) {
-//                rocksDB.put(LAST_INDEX_KEY, toBytes(0L));
-//            }
-//            byte[] index0 = toBytes(0L);
-//            byte[] key = Arrays.copyOf(LOG_KEY_PRE, index0.length + LOG_KEY_PRE.length);
-//            System.arraycopy(index0, 0, key, LOG_KEY_PRE.length, index0.length);
-//            byte[] bytes = logEntrySerializer.serialize(new LogEntry());
-//            rocksDB.put(key, bytes);
             log.info("初始化信息，任期：{}", getCurrentTerm());
         } catch (Exception e) {
             e.printStackTrace();
@@ -97,7 +84,12 @@ public class PersistentStateModel {
 
     public void pushLast(LogEntry logEntry) throws Exception {
         Transaction transaction = rocksDB.beginTransaction(new WriteOptions());
+        RaftServerData.lock.lock();
         try {
+            int currentTerm = getCurrentTerm();
+            long lastIndex = getLastIndex();
+            logEntry.setIndex(lastIndex + 1);
+            logEntry.setTerm(currentTerm);
             byte[] key = toBytes(logEntry.getIndex());
             transaction.put(LAST_INDEX_KEY, key);
             pushLog(key, logEntry, transaction);
@@ -105,8 +97,9 @@ public class PersistentStateModel {
         } catch (Exception e) {
             transaction.rollback();
             throw e;
+        } finally {
+            RaftServerData.lock.unlock();
         }
-
     }
 
     public long getLastIndex() throws Exception {

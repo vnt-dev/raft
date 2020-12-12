@@ -43,9 +43,14 @@ public class OperationFacadeImpl implements OperationFacade {
                 OptionEnum optionEnum = OptionEnum.getByCode(msg.getOption());
                 switch (optionEnum) {
                     case GET:
-                        result = new SubmitResponse(SubmitResponse.SUCCESS, null, msg.getId(), stateMachine.get(msg.getKey()));
+                        if (RaftServerData.isUp()) {
+                            result = new SubmitResponse(SubmitResponse.SUCCESS, null, msg.getId(), stateMachine.get(msg.getKey()));
+                        } else {
+                            result = new SubmitResponse(SubmitResponse.TURN, RaftServerData.leaderId, msg.getId(), null);
+                        }
                         return result;
                     case DEL:
+                        break;
                     case SET:
                         logEntry.setVal(msg.getVal());
                         break;
@@ -58,20 +63,7 @@ public class OperationFacadeImpl implements OperationFacade {
                 logEntry.setKey(msg.getKey());
                 logEntry.setId(msg.getId());
                 logEntry.setOption(msg.getOption());
-                RaftServerData.lock.lock();
-                try {
-                    int currentTerm = model.getCurrentTerm();
-                    long lastIndex = model.getLastIndex();
-                    logEntry.setIndex(lastIndex + 1);
-                    logEntry.setTerm(currentTerm);
-                    model.pushLast(logEntry);
-                } catch (Exception e) {
-                    log.info(e.getMessage(), e);
-                    result = new SubmitResponse(SubmitResponse.ERROR, null, msg.getId(), "存储异常".getBytes(StandardCharsets.UTF_8));
-                    return result;
-                } finally {
-                    RaftServerData.lock.unlock();
-                }
+                model.pushLast(logEntry);
                 index = logEntry.getIndex();
                 id = msg.getId();
                 appendEntriesComponent.broadcastAppendEntries();

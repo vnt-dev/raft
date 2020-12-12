@@ -76,9 +76,9 @@ public class AppendReqHandler extends BaseMessageHandler<AppendEntriesRequest> {
             last = stateModel.getLast();
             if (msg.getLeaderCommit() > serverState.getCommitIndex()) {
                 serverState.setCommitIndex(Math.min(msg.getLeaderCommit(), last.getIndex()));
-            }
-            if (serverState.getCommitIndex() > serverState.getLastApplied()) {
-                stateMachineHandler.commit();
+                if (serverState.getCommitIndex() > serverState.getLastApplied()) {
+                    stateMachineHandler.start();
+                }
             }
             ctx.writeAndFlush(new AppendEntriesResponse(currentTerm, last.getIndex(), true));
         } finally {

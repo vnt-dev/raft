@@ -20,6 +20,7 @@ public enum OptionEnum {
     GET("GET", "获取"),
     SET("SET", "添加"),
     DEL("DEL", "删除"),
+    UP("UP", "主节点上线"),
     ;
 
     /**

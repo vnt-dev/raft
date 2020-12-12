@@ -26,7 +26,7 @@ public class LeaderStateImpl extends AbstractServerStateTransformer {
         RaftServerData.initLeader();
         RaftServerData.serverStateEnum = ServerStateEnum.LEADER;
         RaftServerData.leaderId = NodeGroup.MYSELF;
-        new AppendEntriesComponent().broadcastAppendEntriesOrHeart();
+        new AppendEntriesComponent().broadcastLeader();
         while (RaftServerData.serverStateEnum == ServerStateEnum.LEADER) {
             //不断重连
             RpcClient.getRpcClient().reConn();
@@ -41,6 +41,7 @@ public class LeaderStateImpl extends AbstractServerStateTransformer {
                 log.info("领导者等待异常", e);
             }
         }
+        RaftServerData.leaderDown();
         executeNext();
     }
 

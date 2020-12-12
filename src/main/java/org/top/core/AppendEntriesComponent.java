@@ -2,6 +2,7 @@ package org.top.core;
 
 import lombok.extern.slf4j.Slf4j;
 import org.top.core.machine.KvStateMachineImpl;
+import org.top.core.machine.OptionEnum;
 import org.top.core.machine.SnapshotService;
 import org.top.exception.RaftException;
 import org.top.models.LogEntry;
@@ -16,7 +17,6 @@ import org.top.rpc.entity.SnapshotReq;
 import org.top.rpc.utils.PropertiesUtil;
 
 import java.util.LinkedList;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 
 /**
@@ -32,16 +32,15 @@ public class AppendEntriesComponent {
     private SnapshotExec snapshotExec = SnapshotExec.getInstance();
     private final int sendLogMaxNum = PropertiesUtil.getInt("send_log_max_num");
     private final int sendSnapshotMaxNum = PropertiesUtil.getInt("send_snapshot_max_num");
-    /**
-     * 缓存待发送的日志
-     */
-    private static ConcurrentLinkedQueue<LogEntry> cacheLogs = new ConcurrentLinkedQueue<>();
 
     public void broadcastAppendEntries() {
         RpcClient.getRpcClient().sendAll(node -> appendRequest(node, false), node -> snapshotExec.unRead(node));
     }
 
-    public void broadcastAppendEntriesOrHeart() {
+    public void broadcastLeader() throws Exception {
+        LogEntry logEntry = new LogEntry();
+        logEntry.setOption(OptionEnum.UP.getCode());
+        persistentState.pushLast(logEntry);
         RpcClient.getRpcClient().sendAll(node -> appendRequest(node, true), node -> snapshotExec.unRead(node));
     }
 

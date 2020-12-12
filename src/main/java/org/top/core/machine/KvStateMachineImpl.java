@@ -2,6 +2,7 @@ package org.top.core.machine;
 
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.*;
+import org.top.core.RaftServerData;
 import org.top.core.machine.snapshot.KvEntity;
 import org.top.core.machine.snapshot.SnapshotLoad;
 import org.top.models.LogEntry;
@@ -49,13 +50,17 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
 
     @Override
     public void execute(LogEntry logEntryModel) throws Exception {
+        OptionEnum optionEnum = OptionEnum.getByCode(logEntryModel.getOption());
+        if (optionEnum == OptionEnum.UP) {
+            RaftServerData.leaderUp();
+            return;
+        }
         Transaction transaction = rocksDB.beginTransaction(new WriteOptions());
         try {
             if (isExec(logEntryModel.getId(), transaction)) {
                 log.info("命令已执行 :" + logEntryModel.getIndex());
                 return;
             }
-            OptionEnum optionEnum = OptionEnum.getByCode(logEntryModel.getOption());
             switch (optionEnum) {
                 case SET:
                     set(logEntryModel.getKey(), logEntryModel.getVal(), transaction);
@@ -134,6 +139,10 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     @Override
     public void save(LogEntry logEntry) throws Exception {
         OptionEnum optionEnum = OptionEnum.getByCode(logEntry.getOption());
+        if (optionEnum == OptionEnum.UP) {
+            //节点选举产生的空日志，不做处理
+            return;
+        }
         byte[] key = addPrefix(SERIAL_NUMBER_PRE, logEntry.getId());
         byte[] rs = rocksDB.get(key);
         if (rs == null) {

@@ -103,7 +103,7 @@ public class SnapshotExec {
                 // 最后一条已经应用到状态机的日志和快照太接近也需要暂停
                 while (readMap.size() > 0
                         || readEndTime > System.currentTimeMillis() - waitTime
-                        || RaftServerData.serverState.getLastApplied() < index + snapshotNum) {
+                        || RaftServerData.serverState.getLastApplied() < index + snapshotNum / 10) {
                     conditionRun.await();
                     index = snapshotService.snapshotLastIndex() + 1;
                 }
@@ -117,8 +117,9 @@ public class SnapshotExec {
     }
 
     public void apply() throws Exception {
-        if (readMap.size() <= 0 && readEndTime <= System.currentTimeMillis() - waitTime
+        if (readMap.size() <= 0
                 && RaftServerData.serverState.getLastApplied() >= snapshotService.snapshotLastIndex() + snapshotNum
+                && readEndTime <= System.currentTimeMillis() - waitTime
                 && writeLock.tryLock()) {
             try {
                 conditionRun.signal();

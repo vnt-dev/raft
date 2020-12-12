@@ -68,9 +68,8 @@ public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> 
         //如果存在一个满足N > commitIndex的 N，并且大多数的matchIndex[i] ≥ N成立，
         // 并且log[N].term == currentTerm成立，那么令 commitIndex 等于这个 N （5.3 和 5.4 节）
         long indexMaxN = getMaxN();
+//        log.info("notify,node:{},msg:{},index:{},state:{},all:{}", followerNode, msg, indexMaxN, RaftServerData.serverState,RaftServerData.leaderState);
         if (indexMaxN > RaftServerData.serverState.getCommitIndex()) {
-//            log.info("notify,node:{},msg:{},index:{},state:{},{}", followerNode, msg, indexMaxN, RaftServerData.serverState, nextIndex);
-            //1.1 重置commitIndex
             RaftServerData.serverState.setCommitIndex(indexMaxN);
             //应用到状态机
             if (indexMaxN > RaftServerData.serverState.getLastApplied()) {
