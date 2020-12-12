@@ -16,9 +16,9 @@ import static org.top.clientapi.ResultEntity.getEntity;
  */
 @Slf4j
 public class KvUtils {
-    private ApiClient apiClient = ApiClient.getApiClient();
-    private static long outTime = PropertiesUtil.getLong("outTime");
     private static final int TRY_NUM = 3;
+    private static long outTime = PropertiesUtil.getLong("outTime");
+    private ApiClient apiClient = ApiClient.getApiClient();
 
     public void delete(String key) {
         ResultEntity resultEntity = getEntity(OptionEnum.DEL.getCode(), key, null);

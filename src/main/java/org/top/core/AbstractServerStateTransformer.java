@@ -11,20 +11,6 @@ import java.util.Map;
  */
 public abstract class AbstractServerStateTransformer implements ServerStateTransformer {
 
-    public void executeNext() throws Exception {
-        ServerStateEnum nextState = nextState();
-        executeNext(nextState);
-    }
-
-    public void executeNext(ServerStateEnum nextState) throws Exception {
-        ServerStateTransformer transformer = getServer(nextState);
-        if (transformer.pro()) {
-            transformer.execute();
-        } else {
-            executeNext(transformer.nextState());
-        }
-    }
-
     private static Map<ServerStateEnum, ServerStateTransformer> map = new HashMap<>();
 
     public static ServerStateTransformer getServer(ServerStateEnum stateEnum) {
@@ -40,5 +26,19 @@ public abstract class AbstractServerStateTransformer implements ServerStateTrans
                     throw new RaftException("状态错误");
             }
         });
+    }
+
+    public void executeNext() throws Exception {
+        ServerStateEnum nextState = nextState();
+        executeNext(nextState);
+    }
+
+    public void executeNext(ServerStateEnum nextState) throws Exception {
+        ServerStateTransformer transformer = getServer(nextState);
+        if (transformer.pro()) {
+            transformer.execute();
+        } else {
+            executeNext(transformer.nextState());
+        }
     }
 }

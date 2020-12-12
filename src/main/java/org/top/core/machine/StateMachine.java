@@ -1,7 +1,6 @@
 package org.top.core.machine;
 
 
-import org.rocksdb.RocksDBException;
 import org.top.core.machine.snapshot.KvEntity;
 import org.top.models.LogEntry;
 

@@ -27,15 +27,16 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     /**
      * 指令执行序列号
      */
-    private final static byte[] SERIAL_NUMBER_PRE = "serial_number_pre".getBytes(StandardCharsets.UTF_8);
+    private final static byte[] SERIAL_NUMBER_PRE = "serial_num".getBytes(StandardCharsets.UTF_8);
     private final static byte[] SERIAL_NUMBER_VAL = "val".getBytes(StandardCharsets.UTF_8);
-    private SnapshotLoad snapshotLoad = new SnapshotLoad();
     private static TransactionDB rocksDB;
 
     static {
         RocksDB.loadLibrary();
         init();
     }
+
+    private SnapshotLoad snapshotLoad = new SnapshotLoad();
 
     private static void init() {
         Options options = new Options();

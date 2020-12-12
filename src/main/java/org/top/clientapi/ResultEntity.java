@@ -15,6 +15,7 @@ import java.util.concurrent.Semaphore;
  * @date 2020/12/1
  */
 public class ResultEntity {
+    private static Map<String, ResultEntity> msgMap = new ConcurrentHashMap<>();
     @Getter
     private String id;
     @Getter
@@ -23,8 +24,6 @@ public class ResultEntity {
     private SubmitRequest request;
     @Getter
     private volatile SubmitResponse response;
-
-    private static Map<String, ResultEntity> msgMap = new ConcurrentHashMap<>();
 
     public static void release(SubmitResponse response) {
         ResultEntity resultEntity = msgMap.get(new String(response.getId(), StandardCharsets.UTF_8));

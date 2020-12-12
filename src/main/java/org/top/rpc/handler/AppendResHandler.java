@@ -24,8 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Slf4j
 public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> {
-    private StateMachineHandler stateMachineHandler = new StateMachineHandlerImpl();
     protected Node followerNode;
+    private StateMachineHandler stateMachineHandler = new StateMachineHandlerImpl();
     private AppendEntriesComponent appendEntriesComponent = new AppendEntriesComponent();
 
     @Override
@@ -68,7 +68,6 @@ public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> 
         //如果存在一个满足N > commitIndex的 N，并且大多数的matchIndex[i] ≥ N成立，
         // 并且log[N].term == currentTerm成立，那么令 commitIndex 等于这个 N （5.3 和 5.4 节）
         long indexMaxN = getMaxN();
-//        log.info("notify,node:{},msg:{},index:{},state:{},all:{}", followerNode, msg, indexMaxN, RaftServerData.serverState,RaftServerData.leaderState);
         if (indexMaxN > RaftServerData.serverState.getCommitIndex()) {
             RaftServerData.serverState.setCommitIndex(indexMaxN);
             //应用到状态机

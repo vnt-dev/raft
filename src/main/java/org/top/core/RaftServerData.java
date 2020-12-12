@@ -27,6 +27,12 @@ public class RaftServerData {
      * 主节点上一次心跳的时间戳
      */
     public static volatile long heartbeatTime;
+    public static ServerStateModel serverState = new ServerStateModel();
+    public static LeaderStateModel leaderState;
+    /**
+     * 选举和接收日志都会用这个锁
+     */
+    public static ReentrantLock lock = new ReentrantLock();
     private static volatile boolean up;
 
     public static void leaderUp() {
@@ -44,15 +50,7 @@ public class RaftServerData {
         return up;
     }
 
-    public static ServerStateModel serverState = new ServerStateModel();
-    public static LeaderStateModel leaderState;
-
     public static void initLeader() throws Exception {
         leaderState = new LeaderStateModel(PersistentStateModel.getModel().getLastIndex());
     }
-
-    /**
-     * 选举和接收日志都会用这个锁
-     */
-    public static ReentrantLock lock = new ReentrantLock();
 }

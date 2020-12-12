@@ -3,7 +3,6 @@ package org.top.rpc.handler;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 import org.top.core.FollowerConvert;
-import org.top.core.RaftServerData;
 import org.top.core.VoteSemaphore;
 import org.top.rpc.entity.VoteResponse;
 

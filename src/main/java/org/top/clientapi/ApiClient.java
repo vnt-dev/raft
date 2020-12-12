@@ -27,17 +27,12 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class ApiClient {
+    private static ApiClient apiClient = new ApiClient();
     private EventLoopGroup loopGroup = new NioEventLoopGroup();
     private Map<Node, Channel> map = new ConcurrentHashMap<>();
-    private static ApiClient apiClient = new ApiClient();
     private ArrayList<Node> nodeList = new ArrayList<>();
     private volatile Node leader;
     private int index = 0;
-
-    public static ApiClient getApiClient() {
-        return apiClient;
-    }
-
 
     public ApiClient() {
         String nodesStr = PropertiesUtil.getString("nodes");
@@ -49,6 +44,10 @@ public class ApiClient {
                 nodeList.add(node);
             }
         }
+    }
+
+    public static ApiClient getApiClient() {
+        return apiClient;
     }
 
     private Channel connect(Node node) {

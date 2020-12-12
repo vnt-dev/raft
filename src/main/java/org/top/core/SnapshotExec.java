@@ -30,6 +30,12 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SnapshotExec {
+    private static SnapshotExec snapshotExec = new SnapshotExec();
+    private final int snapshotNum = PropertiesUtil.getInt("snapshot_num");
+    /**
+     * 暂停生成快照的时间
+     */
+    private final long waitTime = PropertiesUtil.getLong("snapshot_wait_time");
     ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1)
             , r -> {
         Thread thread = new Thread(r, "snapshot-thread");
@@ -39,8 +45,6 @@ public class SnapshotExec {
     });
     private SnapshotService snapshotService = new KvStateMachineImpl();
     private PersistentStateModel model = PersistentStateModel.getModel();
-    private final int snapshotNum = PropertiesUtil.getInt("snapshot_num");
-
     private ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     @Getter
     private Lock readLock = readWriteLock.readLock();
@@ -55,13 +59,6 @@ public class SnapshotExec {
      * 最后一次结束读取日志的时间戳
      */
     private volatile long readEndTime;
-    /**
-     * 暂停生成快照的时间
-     */
-    private final long waitTime = PropertiesUtil.getLong("snapshot_wait_time");
-
-    private static SnapshotExec snapshotExec = new SnapshotExec();
-
 
     public static SnapshotExec getInstance() {
         return snapshotExec;

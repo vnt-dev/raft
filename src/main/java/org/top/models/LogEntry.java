@@ -2,7 +2,6 @@ package org.top.models;
 
 import lombok.Getter;
 import lombok.Setter;
-import lombok.ToString;
 
 /**
  * @author lubeilin

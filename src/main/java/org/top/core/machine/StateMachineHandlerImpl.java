@@ -21,13 +21,11 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class StateMachineHandlerImpl implements StateMachineHandler {
-    private StateMachine stateMachine = new KvStateMachineImpl();
-
     private static Semaphore semaphore = new Semaphore(0);
-
-    private PersistentStateModel model = PersistentStateModel.getModel();
     ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1)
             , r -> new Thread(r, "stateMachine-thread"));
+    private StateMachine stateMachine = new KvStateMachineImpl();
+    private PersistentStateModel model = PersistentStateModel.getModel();
 
     @Override
     public void commit() throws Exception {

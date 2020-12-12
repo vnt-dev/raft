@@ -17,7 +17,6 @@ import static org.top.utils.NumberUtil.*;
  */
 @Slf4j
 public class SnapshotLoad {
-    private static TransactionDB snapshotDB;
     /**
      * 最后一个索引
      */
@@ -26,7 +25,7 @@ public class SnapshotLoad {
      * 任期持久化的key
      */
     private final static byte[] CURRENT_TERM_KEY = "term".getBytes(StandardCharsets.UTF_8);
-
+    private static TransactionDB snapshotDB;
 
     static {
         RocksDB.loadLibrary();

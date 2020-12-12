@@ -8,7 +8,6 @@ import org.top.rpc.NodeGroup;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 领导者（服务器）上的易失性状态 (选举后已经重新初始化)
@@ -44,6 +43,6 @@ public class LeaderStateModel {
     }
 
     public void setNextIndexForNode(Node node, long index) {
-        nextIndex.put(node,index);
+        nextIndex.put(node, index);
     }
 }

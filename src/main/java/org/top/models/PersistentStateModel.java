@@ -38,13 +38,22 @@ public class PersistentStateModel {
      */
     private final static byte[] VOTED_FOR_KEY = "voted_for".getBytes(StandardCharsets.UTF_8);
     private final static byte[] LOG = "log".getBytes(StandardCharsets.UTF_8);
-
-    private Serializer<LogEntry> logEntrySerializer = new ProtoBufSerializer<>();
     private static TransactionDB rocksDB;
+    private static PersistentStateModel model = new PersistentStateModel();
 
     static {
         RocksDB.loadLibrary();
         init();
+    }
+
+    private Serializer<LogEntry> logEntrySerializer = new ProtoBufSerializer<>();
+
+    private PersistentStateModel() {
+        try {
+            log.info("初始化信息，任期：{}", getCurrentTerm());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private static void init() {
@@ -55,16 +64,6 @@ public class PersistentStateModel {
             rocksDB = TransactionDB.open(options, dbOptions, PropertiesUtil.getString("log"));
         } catch (RocksDBException e) {
             log.error(e.getMessage(), e);
-        }
-    }
-
-    private static PersistentStateModel model = new PersistentStateModel();
-
-    private PersistentStateModel() {
-        try {
-            log.info("初始化信息，任期：{}", getCurrentTerm());
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 

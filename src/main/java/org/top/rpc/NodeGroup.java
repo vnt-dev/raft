@@ -11,22 +11,9 @@ import java.util.function.Consumer;
  * @date 2020/11/9
  */
 public class NodeGroup {
-    private LinkedHashSet<Node> nodeSet = new LinkedHashSet<>();
     public static final Node MYSELF = new Node(PropertiesUtil.getString("ip"), PropertiesUtil.getInt("port"));
     private static NodeGroup nodeGroup = new NodeGroup();
-
-    public static NodeGroup getNodeGroup() {
-        return nodeGroup;
-    }
-
-    public Node getNode(Node node) {
-        for (Node node1 : nodeSet) {
-            if (node1.equals(node)) {
-                return node1;
-            }
-        }
-        return null;
-    }
+    private LinkedHashSet<Node> nodeSet = new LinkedHashSet<>();
 
     public NodeGroup() {
         String nodesStr = PropertiesUtil.getString("nodes");
@@ -39,6 +26,19 @@ public class NodeGroup {
             }
         }
         nodeSet.remove(MYSELF);
+    }
+
+    public static NodeGroup getNodeGroup() {
+        return nodeGroup;
+    }
+
+    public Node getNode(Node node) {
+        for (Node node1 : nodeSet) {
+            if (node1.equals(node)) {
+                return node1;
+            }
+        }
+        return null;
     }
 
     public void parallelForEach(Consumer<Node> action) {

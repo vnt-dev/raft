@@ -27,11 +27,11 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class AppendEntriesComponent {
+    private final int sendLogMaxNum = PropertiesUtil.getInt("send_log_max_num");
+    private final int sendSnapshotMaxNum = PropertiesUtil.getInt("send_snapshot_max_num");
     private SnapshotService snapshotService = new KvStateMachineImpl();
     private PersistentStateModel persistentState = PersistentStateModel.getModel();
     private SnapshotExec snapshotExec = SnapshotExec.getInstance();
-    private final int sendLogMaxNum = PropertiesUtil.getInt("send_log_max_num");
-    private final int sendSnapshotMaxNum = PropertiesUtil.getInt("send_snapshot_max_num");
 
     public void broadcastAppendEntries() {
         RpcClient.getRpcClient().sendAll(node -> appendRequest(node, false), node -> snapshotExec.unRead(node));
