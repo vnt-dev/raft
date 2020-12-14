@@ -26,6 +26,7 @@ public class FollowerConvert {
                     model.setCurrentTerm(term, transaction);
                     model.setVotedFor(null, transaction);
                     transaction.commit();
+                    ClientNum.convertFollower();
                     return true;
                 }
             } catch (Exception e) {

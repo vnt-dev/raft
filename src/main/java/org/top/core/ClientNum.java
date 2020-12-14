@@ -54,4 +54,16 @@ public class ClientNum {
             lock.unlock();
         }
     }
+
+    /**
+     * 切换为跟随者
+     */
+    public static void convertFollower() {
+        lock.lock();
+        try {
+            condition.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
 }
