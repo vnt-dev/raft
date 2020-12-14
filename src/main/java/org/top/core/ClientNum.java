@@ -26,7 +26,8 @@ public class ClientNum {
     public static void closeAwait() throws InterruptedException {
         lock.lock();
         try {
-            if (num.get() == NodeGroup.getNodeGroup().size()) {
+            if (num.get() == NodeGroup.getNodeGroup().size()
+                    && RaftServerData.serverStateEnum == ServerStateEnum.LEADER) {
                 condition.await();
             }
         } finally {
