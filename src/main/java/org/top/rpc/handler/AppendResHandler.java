@@ -98,6 +98,8 @@ public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> 
                 }
             });
             //2.2 判断是否一半以上成立, 并且log[N].term == currentTerm成立
+            //为什么需要log[N].term == currentTerm，论证5.4.2（提交之前任期内的日志条目） 中提到的，旧任期的日志条目即使是被复制到大多数机器上了仍然有
+            // 可能被覆盖，因此只有等当前任期的日志被提交了才能一起提交前面任期的日志
             if (matchServerCount.get() >= NodeGroup.getNodeGroup().majority() &&
                     model.getLog(indexMaxN).getTerm() == currentTerm) {
                 break;

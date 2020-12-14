@@ -71,7 +71,8 @@ public class AppendReqHandler extends BaseMessageHandler<AppendEntriesRequest> {
             //追加日志中尚未存在的任何新条目
             if (msg.getEntries() != null && !msg.getEntries().isEmpty()) {
                 log.info("pre index:{},log:{}", msg.getPreLogIndex(), msg.getEntries().stream().map(LogEntry::getIndex).collect(Collectors.toList()));
-                stateModel.addLogs(msg.getEntries());
+                //已提交的日志不判断
+                stateModel.addLogs(msg.getEntries(), serverState.getCommitIndex());
             }
             last = stateModel.getLast();
             if (msg.getLeaderCommit() > serverState.getCommitIndex()) {

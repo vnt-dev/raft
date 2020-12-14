@@ -256,10 +256,11 @@ public class PersistentStateModel {
     /**
      * 附加日志并解决冲突
      *
-     * @param append 日志是有序的，按索引从小到大排列
+     * @param append      日志是有序的，按索引从小到大排列
+     * @param commitIndex 已提交的不需要再判断
      * @throws Exception 操作异常
      */
-    public void addLogs(List<LogEntry> append) throws Exception {
+    public void addLogs(List<LogEntry> append, long commitIndex) throws Exception {
         Transaction transaction = rocksDB.beginTransaction(new WriteOptions());
         try {
             long lastIndex = getLastIndex();
@@ -268,12 +269,10 @@ public class PersistentStateModel {
                     //追加日志中尚未存在的任何新条目
                     lastIndex = logEntry.getIndex();
                     pushLog(toBytes(lastIndex), logEntry, transaction);
-                } else if (getLog(logEntry.getIndex()).getTerm() != logEntry.getTerm()) {
+                } else if (logEntry.getIndex() > commitIndex && getLog(logEntry.getIndex()).getTerm() != logEntry.getTerm()) {
                     //发生了冲突（因为索引相同，任期不同），那么就删除这个已经存在的条目以及它之后的所有条目,这里只做标记即可，后面直接覆盖
                     lastIndex = logEntry.getIndex();
                     pushLog(toBytes(lastIndex), logEntry, transaction);
-                } else {
-                    lastIndex = logEntry.getIndex();
                 }
             }
             transaction.put(LAST_INDEX_KEY, toBytes(lastIndex));
