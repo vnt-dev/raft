@@ -3,6 +3,7 @@ package org.top.rpc.handler;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
 import org.top.clientapi.ResultEntity;
+import org.top.clientapi.async.AsyncResultEntity;
 import org.top.clientapi.entity.SubmitResponse;
 
 /**
@@ -16,6 +17,8 @@ public class ClientHandler extends BaseMessageHandler<SubmitResponse> {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, SubmitResponse msg) {
-        ResultEntity.release(msg);
+        if (!AsyncResultEntity.async(msg)) {
+            ResultEntity.release(msg);
+        }
     }
 }

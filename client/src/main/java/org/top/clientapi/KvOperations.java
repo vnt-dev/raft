@@ -1,5 +1,7 @@
 package org.top.clientapi;
 
+import org.top.clientapi.async.AsyncValueOperations;
+
 /**
  * @author lubeilin
  * @date 2020/12/15
@@ -12,4 +14,11 @@ public interface KvOperations<V> {
      * @return
      */
     ValueOperations<V> opsForValue();
+
+    /**
+     * 异步操作
+     *
+     * @return
+     */
+    AsyncValueOperations<V> opsForValueAsync();
 }
