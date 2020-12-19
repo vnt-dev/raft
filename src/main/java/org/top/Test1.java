@@ -2,7 +2,6 @@ package org.top;
 
 import lombok.extern.slf4j.Slf4j;
 import org.top.core.ServerStateTransformerStarter;
-import org.top.rpc.NodeGroup;
 import org.top.rpc.utils.PropertiesUtil;
 
 /**
@@ -20,8 +19,7 @@ public class Test1 {
         new ServerStateTransformerStarter().start();
 //        NodeGroup.getNodeGroup().forEach(node ->  log.info("{}", node));
 //        NodeGroup.getNodeGroup().parallelForEach(node ->  log.info("{}", node));
-           ;
-//        AsyncFunction<Temp> function = (node,msg)->{
+        //        AsyncFunction<Temp> function = (node,msg)->{
 //            log.info("接收：{},msg:{}",node,System.currentTimeMillis()-msg.getStart());
 //            node.writeAndFlush(new Temp(msg.getStart(),System.currentTimeMillis()));
 //        };

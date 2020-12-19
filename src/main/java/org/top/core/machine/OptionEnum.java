@@ -20,6 +20,8 @@ public enum OptionEnum {
     GET("GET", "获取"),
     SET("SET", "添加"),
     DEL("DEL", "删除"),
+    INCR("INCR", "自增"),
+    DECR("DECR", "自减"),
     UP("UP", "主节点上线"),
     ;
 
@@ -47,7 +49,7 @@ public enum OptionEnum {
                 return anEnum;
             }
         }
-        throw new RuntimeException("code不存在");
+        return null;
     }
 
 }

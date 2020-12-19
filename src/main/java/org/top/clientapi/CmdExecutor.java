@@ -15,30 +15,15 @@ import static org.top.clientapi.ResultEntity.getEntity;
  * @date 2020/11/27
  */
 @Slf4j
-public class KvUtils {
+public class CmdExecutor {
     private static final int TRY_NUM = 3;
     private static long outTime = PropertiesUtil.getLong("outTime");
     private ApiClient apiClient = ApiClient.getApiClient();
 
-    public void delete(String key) {
-        ResultEntity resultEntity = getEntity(OptionEnum.DEL.getCode(), key, null);
+    public byte[] cmd(OptionEnum optionEnum, byte[] key, byte[] value) {
+        ResultEntity resultEntity = getEntity(optionEnum.getCode(), key, value);
         send(resultEntity, 0);
-    }
-
-
-    public String get(String key) {
-        ResultEntity resultEntity = getEntity(OptionEnum.GET.getCode(), key, null);
-        send(resultEntity, 0);
-        if (resultEntity.getResponse().getData() == null) {
-            return null;
-        }
-        return new String(resultEntity.getResponse().getData());
-    }
-
-
-    public void set(String key, String value) {
-        ResultEntity resultEntity = getEntity(OptionEnum.SET.getCode(), key, value);
-        send(resultEntity, 0);
+        return resultEntity.getResponse().getData();
     }
 
     private void send(ResultEntity resultEntity, int num) {
@@ -56,7 +41,9 @@ public class KvUtils {
                 SubmitResponse response = resultEntity.getResponse();
                 switch (response.getCode()) {
                     case SubmitResponse.FAIL:
+                        throw new RuntimeException(new String(response.getData(), StandardCharsets.UTF_8));
                     case SubmitResponse.ERROR:
+                        apiClient.resetLeader();
                         throw new RuntimeException(new String(response.getData(), StandardCharsets.UTF_8));
                     case SubmitResponse.SUCCESS:
                         ResultEntity.remove(resultEntity);

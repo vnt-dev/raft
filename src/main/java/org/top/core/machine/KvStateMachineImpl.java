@@ -5,7 +5,10 @@ import org.rocksdb.*;
 import org.top.core.RaftServerData;
 import org.top.core.machine.snapshot.KvEntity;
 import org.top.core.machine.snapshot.SnapshotLoad;
+import org.top.exception.RaftException;
 import org.top.models.LogEntry;
+import org.top.models.PersistentStateModel;
+import org.top.rpc.codec.ProtoBufSerializer;
 import org.top.rpc.utils.PropertiesUtil;
 
 import java.nio.charset.StandardCharsets;
@@ -29,6 +32,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
      */
     private final static byte[] SERIAL_NUMBER_PRE = "serial_num".getBytes(StandardCharsets.UTF_8);
     private final static byte[] SERIAL_NUMBER_VAL = "val".getBytes(StandardCharsets.UTF_8);
+    private static ProtoBufSerializer<String> serializer = new ProtoBufSerializer<>();
     private static TransactionDB rocksDB;
 
     static {
@@ -50,33 +54,73 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     }
 
     @Override
-    public void execute(LogEntry logEntryModel) throws Exception {
-        OptionEnum optionEnum = OptionEnum.getByCode(logEntryModel.getOption());
-        if (optionEnum == OptionEnum.UP) {
+    public byte[] execute(LogEntry logEntry) throws Exception {
+        OptionEnum optionEnum = OptionEnum.getByCode(logEntry.getOption());
+        if (optionEnum == OptionEnum.UP && logEntry.getTerm() == PersistentStateModel.getModel().getCurrentTerm()) {
             RaftServerData.leaderUp();
-            return;
+            return null;
+        }
+        if (optionEnum == null) {
+            throw new RaftException("不支持的类型" + logEntry.getOption());
         }
         Transaction transaction = rocksDB.beginTransaction(new WriteOptions());
         try {
-            if (isExec(logEntryModel.getId(), transaction)) {
-                log.info("命令已执行 :" + logEntryModel.getIndex());
-                return;
+            byte[] bytes = null;
+            if (isExec(logEntry.getId(), transaction)) {
+                log.info("命令已执行 :" + logEntry.getIndex());
+                return get(logEntry.getKey());
             }
             switch (optionEnum) {
                 case SET:
-                    set(logEntryModel.getKey(), logEntryModel.getVal(), transaction);
+                    set(logEntry.getKey(), logEntry.getVal(), transaction);
                     break;
                 case DEL:
-                    delete(logEntryModel.getKey(), transaction);
+                    delete(logEntry.getKey(), transaction);
+                    break;
+                case INCR:
+                case DECR:
+                    bytes = calculation(optionEnum, get(logEntry.getKey()), logEntry.getVal());
+                    set(logEntry.getKey(), bytes, transaction);
                     break;
                 default:
-                    log.info("不支持的类型 :" + optionEnum);
+                    throw new RaftException("不支持的类型" + optionEnum);
             }
             transaction.commit();
+            return bytes;
         } catch (Exception e) {
             transaction.rollback();
             throw e;
         }
+    }
+
+    private byte[] calculation(OptionEnum optionEnum, byte[] old, byte[] val) {
+        byte[] bytes;
+        long temp;
+        if (val != null) {
+            try {
+                temp = Long.parseLong(serializer.deserialize(val, String.class));
+            } catch (Exception e) {
+                throw new RaftException("不是数字");
+            }
+        } else {
+            temp = 1;
+        }
+        if (old != null) {
+            try {
+                String str = serializer.deserialize(old, String.class);
+                String num = Long.toString(calculation(optionEnum, Long.parseLong(str), temp));
+                bytes = serializer.serialize(num);
+            } catch (Exception e) {
+                throw new RaftException("不是数字");
+            }
+        } else {
+            bytes = serializer.serialize(Long.toString(calculation(optionEnum, 0, temp)));
+        }
+        return bytes;
+    }
+
+    private long calculation(OptionEnum optionEnum, long old, long val) {
+        return optionEnum == OptionEnum.INCR ? old + val : old - val;
     }
 
     @Override
@@ -140,12 +184,11 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     @Override
     public void save(LogEntry logEntry) throws Exception {
         OptionEnum optionEnum = OptionEnum.getByCode(logEntry.getOption());
-        if (optionEnum == OptionEnum.UP) {
-            //节点选举产生的空日志，不做处理
+        if (optionEnum == null) {
             return;
         }
-        byte[] key = addPrefix(SERIAL_NUMBER_PRE, logEntry.getId());
-        byte[] rs = rocksDB.get(key);
+        byte[] idKey = addPrefix(SERIAL_NUMBER_PRE, logEntry.getId());
+        byte[] rs = rocksDB.get(idKey);
         if (rs == null) {
             //没有序列号说明该指令已经执行过了，不需要重复执行
             log.info("已生成快照:{}", logEntry.getIndex());
@@ -154,7 +197,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
         long lastIndex = snapshotLoad.getIndex();
         if (lastIndex >= logEntry.getIndex()) {
             //最终索引大于当前的日志索引，说明该日志已经执行过了
-            rocksDB.delete(key);
+            rocksDB.delete(idKey);
             return;
         }
         switch (optionEnum) {
@@ -164,9 +207,14 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
             case DEL:
                 snapshotLoad.del(addPrefix(STRING, logEntry.getKey()), logEntry.getTerm(), logEntry.getIndex());
                 break;
+            case INCR:
+            case DECR:
+                byte[] bytes = calculation(optionEnum, snapshotLoad.get(logEntry.getKey()), logEntry.getVal());
+                snapshotLoad.set(addPrefix(STRING, logEntry.getKey()), bytes, logEntry.getTerm(), logEntry.getIndex());
+                break;
             default:
         }
-        rocksDB.delete(key);
+        rocksDB.delete(idKey);
     }
 
     @Override

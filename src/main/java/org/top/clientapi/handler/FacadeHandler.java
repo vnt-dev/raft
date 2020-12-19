@@ -31,10 +31,16 @@ public class FacadeHandler extends BaseMessageHandler<SubmitRequest> {
         if (response != null) {
             ctx.writeAndFlush(response);
         } else {
-            executor.execute(() -> {
+            try {
+                executor.execute(() -> {
+                    facade.await();
+                    ctx.writeAndFlush(facade.result());
+                });
+            } catch (Exception e) {
                 facade.await();
                 ctx.writeAndFlush(facade.result());
-            });
+            }
+
         }
     }
 

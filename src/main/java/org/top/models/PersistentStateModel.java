@@ -76,7 +76,12 @@ public class PersistentStateModel {
         return new LogEntry();
     }
 
-
+    /**
+     * 主节点接受日志
+     *
+     * @param logEntry
+     * @throws Exception
+     */
     public void pushLast(LogEntry logEntry) throws Exception {
         Transaction transaction = rocksDB.beginTransaction(new WriteOptions());
         RaftServerData.lock.lock();

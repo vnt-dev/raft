@@ -17,9 +17,10 @@ public interface StateMachine {
      * 执行状态机
      *
      * @param logEntryModel 日志
+     * @return 数据
      * @throws Exception 异常
      */
-    void execute(LogEntry logEntryModel) throws Exception;
+    byte[] execute(LogEntry logEntryModel) throws Exception;
 
     /**
      * 存储快照数据

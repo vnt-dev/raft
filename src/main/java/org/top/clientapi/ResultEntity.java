@@ -37,14 +37,14 @@ public class ResultEntity {
         msgMap.remove(entity.id);
     }
 
-    public static ResultEntity getEntity(String option, String key, String value) {
+    public static ResultEntity getEntity(String option, byte[] key, byte[]  value) {
         String id = UUID.randomUUID().toString();
         SubmitRequest submitRequest = new SubmitRequest();
         submitRequest.setOption(option);
-        submitRequest.setKey(key.getBytes(StandardCharsets.UTF_8));
+        submitRequest.setKey(key);
         submitRequest.setId(id.getBytes(StandardCharsets.UTF_8));
         if (value != null) {
-            submitRequest.setVal(value.getBytes(StandardCharsets.UTF_8));
+            submitRequest.setVal(value);
         }
         ResultEntity resultEntity = new ResultEntity();
         resultEntity.id = id;

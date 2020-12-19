@@ -99,28 +99,32 @@ public class RpcClient {
         });
     }
 
+    public void sendOne(Node node, Exec exec, NotConnEvent event) {
+        try {
+            Channel channel = connect(node);
+            if (channel.isActive()) {
+                ReentrantLock lock = nodeLockMap.computeIfAbsent(node, node1 -> new ReentrantLock());
+                lock.lock();
+                try {
+                    send(channel, exec.exe(node));
+                } finally {
+                    lock.unlock();
+                }
+            } else {
+                event.exe(node);
+            }
+        } catch (Exception e) {
+            log.info("发送失败", e);
+        }
+    }
+
     public void sendAll(Exec exec, NotConnEvent event) {
         nodeGroup.parallelForEach(node -> {
-            try {
-                Channel channel = connect(node);
-                if (channel.isActive()) {
-                    ReentrantLock lock = nodeLockMap.computeIfAbsent(node, node1 -> new ReentrantLock());
-                    lock.lock();
-                    try {
-                        send(channel, exec.exe(node));
-                    } finally {
-                        lock.unlock();
-                    }
-                } else {
-                    event.exe(node);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            sendOne(node, exec, event);
         });
     }
 
-    public void send(Channel channel, BaseMessage msg) {
+    private void send(Channel channel, BaseMessage msg) {
         if (msg == null) {
             return;
         }

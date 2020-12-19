@@ -1,7 +1,7 @@
 package org.top;
 
 import lombok.extern.slf4j.Slf4j;
-import org.top.clientapi.KvUtils;
+import org.top.clientapi.BaseKvOperations;
 import org.top.rpc.utils.PropertiesUtil;
 
 import java.util.ArrayList;
@@ -14,26 +14,17 @@ import java.util.List;
 @Slf4j
 public class ClientTest2 {
     public static void main(String[] args) throws InterruptedException {
-        PropertiesUtil.setValue("nodes", "127.0.0.1:8041,127.0.0.1:8042,127.0.0.1:8043");
+        PropertiesUtil.setValue("nodes", "127.0.0.1:8040,127.0.0.1:8041,127.0.0.1:8042,127.0.0.1:8043");
         PropertiesUtil.setValue("outTime", "5000");
-        KvUtils kvUtils = new KvUtils();
-        log.info("get");
-        log.info("rs:{}", kvUtils.get("hello world"));
-
+        BaseKvOperations<String> operations = new BaseKvOperations<>(String.class);
         List<Integer> list = new ArrayList<>();
-        for (int i=0;i<20000;i++){
+        for (int i=0;i<10000;i++){
             list.add(i);
         }
-
-//        log.info("{}: {}",999, kvUtils.get("k"+999));
-        long start = System.currentTimeMillis();
-        log.info("start");
-        list.stream().forEach(v->{
-            kvUtils.set("hello world 2-"+v,"vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"); //2835
-//            kvUtils.delete("hello world");//1951
-//            log.info(kvUtils.get("hello world 2-"+v)); //639
+        log.info("v:{}", operations.opsForValue().get("incr_key 2"));
+        list.parallelStream().forEach(e->{
+            log.info("v:{}", operations.opsForValue().incr("incr_key 2"));
         });
-        log.info("rs:{}", kvUtils.get("hello world"));
-        log.info("end,:{}",System.currentTimeMillis()-start);
+        log.info("v:{}", operations.opsForValue().get("incr_key 2"));
     }
 }

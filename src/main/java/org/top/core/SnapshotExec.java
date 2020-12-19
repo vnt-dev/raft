@@ -100,12 +100,13 @@ public class SnapshotExec {
                 // 最后一条已经应用到状态机的日志和快照太接近也需要暂停
                 while (readMap.size() > 0
                         || readEndTime > System.currentTimeMillis() - waitTime
-                        || RaftServerData.serverState.getLastApplied() < index + snapshotNum / 10) {
+                        || RaftServerData.serverState.getLastApplied() <= index + snapshotNum / 10) {
                     conditionRun.await();
                     index = snapshotService.snapshotLastIndex() + 1;
                 }
                 LogEntry logEntry = model.getLog(index);
                 snapshotService.save(logEntry);
+                log.info("生成快照：{}", logEntry);
                 model.remove(index - 1);
             }
         } finally {

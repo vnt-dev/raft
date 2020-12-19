@@ -66,6 +66,10 @@ public class SnapshotLoad {
         }
     }
 
+    public byte[] get(byte[] key) throws RocksDBException {
+        return snapshotDB.get(key);
+    }
+
     public int getTerm() throws Exception {
         byte[] term = snapshotDB.get(CURRENT_TERM_KEY);
         return term == null ? 0 : toInt(term);

@@ -39,6 +39,9 @@ public class AppendReqHandler extends BaseMessageHandler<AppendEntriesRequest> {
         //执行代码期间不会进入候选者状态
         RaftServerData.isBusy = true;
         RaftServerData.lock.lock();
+        if (msg.getEntries() != null) {
+            log.info("pre index:{},log:{}", msg.getPreLogIndex(), msg.getEntries().stream().map(LogEntry::getIndex).collect(Collectors.toList()));
+        }
         try {
             FollowerConvert.convertFollower(msg.getTerm());
             PersistentStateModel stateModel = PersistentStateModel.getModel();
@@ -70,7 +73,6 @@ public class AppendReqHandler extends BaseMessageHandler<AppendEntriesRequest> {
             //如果一个已经存在的条目和新条目（译者注：即刚刚接收到的日志条目）发生了冲突（因为索引相同，任期不同），那么就删除这个已经存在的条目以及它之后的所有条目
             //追加日志中尚未存在的任何新条目
             if (msg.getEntries() != null && !msg.getEntries().isEmpty()) {
-                log.info("pre index:{},log:{}", msg.getPreLogIndex(), msg.getEntries().stream().map(LogEntry::getIndex).collect(Collectors.toList()));
                 //已提交的日志不判断
                 stateModel.addLogs(msg.getEntries(), serverState.getCommitIndex());
             }

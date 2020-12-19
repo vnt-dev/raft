@@ -9,7 +9,6 @@ import org.top.core.machine.StateMachineHandlerImpl;
 import org.top.models.PersistentStateModel;
 import org.top.rpc.Node;
 import org.top.rpc.NodeGroup;
-import org.top.rpc.codec.BaseMessage;
 import org.top.rpc.entity.AppendEntriesResponse;
 
 import java.net.InetSocketAddress;
@@ -58,12 +57,9 @@ public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> 
             Map<Node, Long> matchIndex = RaftServerData.leaderState.getMatchIndex();
             matchIndex.put(followerNode, msg.getIndex());
         } else {
-            //noinspection SynchronizeOnNonFinalField
-            synchronized (followerNode) {
-                //这里做一个优化，下一个索引值由从节点传过来，返回值msg.getIndex() 为目标的最后一条日志
-                //由于默认就看做成功的，所以只有失败才要设置下一个索引值
-                RaftServerData.leaderState.setNextIndexForNode(followerNode, msg.getIndex() + 1);
-            }
+            //这里做一个优化，下一个索引值由从节点传过来，返回值msg.getIndex() 为目标的最后一条日志
+            //由于默认就看做成功的，所以只有失败才要设置下一个索引值
+            RaftServerData.leaderState.setNextIndexForNode(followerNode, msg.getIndex() + 1);
         }
         //如果存在一个满足N > commitIndex的 N，并且大多数的matchIndex[i] ≥ N成立，
         // 并且log[N].term == currentTerm成立，那么令 commitIndex 等于这个 N （5.3 和 5.4 节）
@@ -112,10 +108,8 @@ public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> 
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
         if (evt instanceof IdleStateEvent) {
             if (RaftServerData.serverStateEnum == ServerStateEnum.LEADER) {
-                BaseMessage baseMessage = appendEntriesComponent.appendRequest(followerNode, true);
-                if (baseMessage != null) {
-                    ctx.writeAndFlush(baseMessage);
-                }
+                //这里直接发会导致日志乱序,因此要走一致的日志附加逻辑
+                appendEntriesComponent.appendEntriesOne(followerNode);
             }
         } else {
             super.userEventTriggered(ctx, evt);

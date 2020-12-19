@@ -95,6 +95,13 @@ public class ApiClient {
         }
     }
 
+    public void resetLeader() {
+        synchronized (this) {
+            index = (index + 1) % nodeList.size();
+            leader = null;
+        }
+    }
+
     private synchronized Channel check(int num) {
         if (num > nodeList.size()) {
             throw new RuntimeException("连接失败");

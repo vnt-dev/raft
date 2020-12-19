@@ -2,12 +2,10 @@ package org.top.core.log;
 
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 主节点日志写入信号量
@@ -17,19 +15,18 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 @Slf4j
 public class LogIndexSemaphore {
-    private static ReentrantLock lock = new ReentrantLock();
-    private static LinkedList<Node> linkedList = new LinkedList<>();
-    /**
-     * 当前提交的最大日志索引
-     */
-    private volatile static long maxIndex;
-    /**
-     * 需要监听的日志索引
-     */
-    private long index;
+    private static ConcurrentHashMap<Long, IndexNode> nodeMap = new ConcurrentHashMap<>();
 
-    public LogIndexSemaphore(long index) {
-        this.index = index;
+    public void addListener(long index) {
+        nodeMap.put(index, new IndexNode(index, new Semaphore(0), null));
+    }
+
+    public IndexNode getData(long index) {
+        return nodeMap.get(index);
+    }
+
+    public void remove(long index) {
+        nodeMap.remove(index);
     }
 
     /**
@@ -40,57 +37,40 @@ public class LogIndexSemaphore {
      * @return 是否提前被唤醒
      * @throws InterruptedException 中断
      */
-    public boolean await(long time, TimeUnit unit) throws InterruptedException {
-        if (index <= maxIndex) {
-            return true;
+    public boolean await(long index, long time, TimeUnit unit) throws InterruptedException {
+        IndexNode indexNode = nodeMap.get(index);
+        if (indexNode == null) {
+            return false;
         }
-        lock.lock();
-        try {
-            if (index <= maxIndex) {
-                return true;
-            }
-            Node node = new Node(index, lock.newCondition());
-            linkedList.addLast(node);
-            return node.condition.await(time, unit);
-        } finally {
-            lock.unlock();
-        }
+        return indexNode.semaphore.tryAcquire(time, unit);
     }
 
     /**
-     * 唤醒当前索引往前的所有等待线程
+     * 唤醒第一个
      */
-    public void signalAll() {
-        lock.lock();
-        try {
-            Iterator<Node> iterator = linkedList.iterator();
-            if (maxIndex < index) {
-                maxIndex = index;
-            }
-            while (iterator.hasNext()) {
-                Node node = iterator.next();
-                if (node.index <= index) {
-                    iterator.remove();
-                    node.condition.signalAll();
-                }
-            }
-        } finally {
-            lock.unlock();
+    public void signal(long index, boolean success, byte[] data) {
+        IndexNode indexNode = nodeMap.get(index);
+        if (indexNode != null) {
+            indexNode.success = success;
+            indexNode.data = data;
+            indexNode.semaphore.release();
         }
-
     }
 
-    private static class Node implements Comparable<Node> {
-        long index;
-        Condition condition;
+    public static class IndexNode implements Comparable<IndexNode> {
+        volatile long index;
+        volatile boolean success;
+        volatile byte[] data;
+        volatile Semaphore semaphore;
 
-        public Node(long index, Condition condition) {
+        public IndexNode(long index, Semaphore semaphore, byte[] data) {
             this.index = index;
-            this.condition = condition;
+            this.semaphore = semaphore;
+            this.data = data;
         }
 
         @Override
-        public int compareTo(Node o) {
+        public int compareTo(IndexNode o) {
             return Long.compare(index, o.index);
         }
 
@@ -99,11 +79,11 @@ public class LogIndexSemaphore {
             if (this == o) {
                 return true;
             }
-            if (!(o instanceof Node)) {
+            if (!(o instanceof IndexNode)) {
                 return false;
             }
-            Node node = (Node) o;
-            return index == node.index;
+            IndexNode indexNode = (IndexNode) o;
+            return index == indexNode.index;
         }
 
         @Override
