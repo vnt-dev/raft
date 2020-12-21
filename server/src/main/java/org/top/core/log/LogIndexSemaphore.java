@@ -15,17 +15,17 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class LogIndexSemaphore {
-    private static ConcurrentHashMap<Long, IndexNode> nodeMap = new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<String, IndexNode> nodeMap = new ConcurrentHashMap<>();
 
-    public void addListener(long index) {
-        nodeMap.put(index, new IndexNode(index, new Semaphore(0), null));
+    public void addListener(String id) {
+        nodeMap.put(id, new IndexNode(id, new Semaphore(0), null));
     }
 
-    public IndexNode getData(long index) {
+    public IndexNode getData(String  index) {
         return nodeMap.get(index);
     }
 
-    public void remove(long index) {
+    public void remove(String index) {
         nodeMap.remove(index);
     }
 
@@ -37,7 +37,7 @@ public class LogIndexSemaphore {
      * @return 是否提前被唤醒
      * @throws InterruptedException 中断
      */
-    public boolean await(long index, long time, TimeUnit unit) throws InterruptedException {
+    public boolean await(String index, long time, TimeUnit unit) throws InterruptedException {
         IndexNode indexNode = nodeMap.get(index);
         if (indexNode == null) {
             return false;
@@ -48,7 +48,7 @@ public class LogIndexSemaphore {
     /**
      * 唤醒第一个
      */
-    public void signal(long index, boolean success, byte[] data) {
+    public void signal(String  index, boolean success, byte[] data) {
         IndexNode indexNode = nodeMap.get(index);
         if (indexNode != null) {
             indexNode.success = success;
@@ -57,21 +57,16 @@ public class LogIndexSemaphore {
         }
     }
 
-    public static class IndexNode implements Comparable<IndexNode> {
-        volatile long index;
+    public static class IndexNode {
+        volatile String index;
         volatile boolean success;
         volatile byte[] data;
         volatile Semaphore semaphore;
 
-        public IndexNode(long index, Semaphore semaphore, byte[] data) {
+        public IndexNode(String index, Semaphore semaphore, byte[] data) {
             this.index = index;
             this.semaphore = semaphore;
             this.data = data;
-        }
-
-        @Override
-        public int compareTo(IndexNode o) {
-            return Long.compare(index, o.index);
         }
 
         @Override

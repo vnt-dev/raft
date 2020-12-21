@@ -22,6 +22,7 @@ public class ServerStateTransformerStarter {
             new RpcServer().start();
             new StateMachineHandlerImpl().loop();
             SnapshotExec.getInstance().saveLoop();
+            AppendLogEntriesExec.getInstance().loop();
             // follower 为入口
             ServerStateTransformer followerState = AbstractServerStateTransformer.getServer(ServerStateEnum.FOLLOWER);
             followerState.execute();

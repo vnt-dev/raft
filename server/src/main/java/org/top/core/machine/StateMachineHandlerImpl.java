@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.top.core.RaftServerData;
 import org.top.core.ServerStateEnum;
 import org.top.core.SnapshotExec;
-import org.top.core.log.LogIndexSemaphore;
+import org.top.core.log.OperationFacadeImpl;
 import org.top.exception.RaftException;
 import org.top.models.LogEntry;
 import org.top.models.PersistentStateModel;
@@ -28,6 +28,7 @@ public class StateMachineHandlerImpl implements StateMachineHandler {
             , r -> new Thread(r, "stateMachine-thread"));
     private StateMachine stateMachine = new KvStateMachineImpl();
     private PersistentStateModel model = PersistentStateModel.getModel();
+    private OperationFacadeImpl operationFacade = new OperationFacadeImpl();
 
     @Override
     public void commit() throws Exception {
@@ -45,8 +46,9 @@ public class StateMachineHandlerImpl implements StateMachineHandler {
                 success = false;
             }
             serverState.setLastApplied(i);
-            if(RaftServerData.serverStateEnum== ServerStateEnum.LEADER) {
-                new LogIndexSemaphore().signal(i, success, rs);
+            if (RaftServerData.serverStateEnum == ServerStateEnum.LEADER) {
+                operationFacade.callback(last.getId(), success, rs);
+//                new LogIndexSemaphore().signal(last.getId(), success, rs);
             }
         }
         //生成快照

@@ -14,8 +14,6 @@ import org.top.models.ServerStateModel;
 import org.top.rpc.entity.AppendEntriesRequest;
 import org.top.rpc.entity.AppendEntriesResponse;
 
-import java.util.stream.Collectors;
-
 /**
  * 日志附加事件处理
  * 接收者的实现：
@@ -40,7 +38,7 @@ public class AppendReqHandler extends BaseMessageHandler<AppendEntriesRequest> {
         RaftServerData.isBusy = true;
         RaftServerData.lock.lock();
         if (msg.getEntries() != null) {
-            log.info("pre index:{},log:{}", msg.getPreLogIndex(), msg.getEntries().stream().map(LogEntry::getIndex).collect(Collectors.toList()));
+            log.info("pre index:{},log:{}", msg.getPreLogIndex(), msg.getEntries().size());
         }
         try {
             FollowerConvert.convertFollower(msg.getTerm());

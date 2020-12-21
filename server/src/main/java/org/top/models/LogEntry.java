@@ -12,7 +12,7 @@ import lombok.Setter;
 public class LogEntry {
     private long index;
     private int term;
-    private byte[] id;
+    private String id;
     private String option;
     private byte[] key;
     private byte[] val;

@@ -17,7 +17,6 @@ import org.top.rpc.entity.SnapshotReq;
 import org.top.rpc.utils.PropertiesUtil;
 
 import java.util.LinkedList;
-import java.util.stream.Collectors;
 
 /**
  * 生成各节点待接收的日志
@@ -46,7 +45,7 @@ public class AppendEntriesComponent {
     public void broadcastLeader() throws Exception {
         LogEntry logEntry = new LogEntry();
         logEntry.setOption(OptionEnum.UP.getCode());
-        logEntry.setId(new byte[]{0});
+        logEntry.setId("");
         persistentState.pushLast(logEntry);
     }
 
@@ -89,7 +88,6 @@ public class AppendEntriesComponent {
         if (appendLog.list != null) {
             //这里做个优化，发送出去默认就增加（假定从节点一定接收成功）
             RaftServerData.leaderState.setNextIndexForNode(node, appendLog.pro.getIndex() + 1, appendLog.list.getLast().getIndex() + 1);
-            log.info("node:{},pro:{},log:{}   ", node, appendLog.pro.getIndex(), appendLog.list.stream().map(LogEntry::getIndex).collect(Collectors.toList()));
         }
         //需要被保存的日志条目（被当做心跳使用时 则日志条目内容为空；为了提高效率可能一次性发送多个）
         request.setEntries(appendLog.list);

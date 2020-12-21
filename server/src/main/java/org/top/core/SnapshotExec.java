@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.top.core.machine.KvStateMachineImpl;
 import org.top.core.machine.SnapshotService;
-import org.top.exception.RaftException;
+import org.top.exception.LogException;
 import org.top.models.LogEntry;
 import org.top.models.PersistentStateModel;
 import org.top.rpc.Node;
@@ -88,7 +88,7 @@ public class SnapshotExec {
                     LogEntry logEntry = model.getLog(index);
                     snapshotService.save(logEntry);
                     model.remove(index - 1);
-                } catch (RaftException e) {
+                } catch (LogException e) {
                     log.info("命令已执行");
                 }
             }
@@ -106,7 +106,7 @@ public class SnapshotExec {
                 }
                 LogEntry logEntry = model.getLog(index);
                 snapshotService.save(logEntry);
-                log.info("生成快照：{}", logEntry);
+//                log.info("生成快照：{}", logEntry);
                 model.remove(index - 1);
             }
         } finally {

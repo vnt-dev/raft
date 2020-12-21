@@ -4,7 +4,6 @@ import lombok.Getter;
 import org.top.clientapi.entity.SubmitRequest;
 import org.top.clientapi.entity.SubmitResponse;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,9 +21,11 @@ public class AsyncResultEntity {
     private volatile ResponseCallback responseCallback;
 
     public static boolean async(SubmitResponse response) {
-        AsyncResultEntity asyncResultEntity = msgMap.remove(new String(response.getId(), StandardCharsets.UTF_8));
+        AsyncResultEntity asyncResultEntity = msgMap.remove(response.getId());
         if (asyncResultEntity != null) {
-            asyncResultEntity.responseCallback.callback(response.getCode(), response.getData());
+            if (asyncResultEntity.responseCallback != null) {
+                asyncResultEntity.responseCallback.callback(response.getCode(), response.getData());
+            }
             return true;
         }
         return false;
@@ -38,10 +39,8 @@ public class AsyncResultEntity {
         SubmitRequest submitRequest = new SubmitRequest();
         submitRequest.setOption(option);
         submitRequest.setKey(key);
-        submitRequest.setId(id.getBytes(StandardCharsets.UTF_8));
-        if (value != null) {
-            submitRequest.setVal(value);
-        }
+        submitRequest.setId(id);
+        submitRequest.setVal(value);
         AsyncResultEntity asyncResultEntity = new AsyncResultEntity();
         asyncResultEntity.id = id;
         asyncResultEntity.request = submitRequest;

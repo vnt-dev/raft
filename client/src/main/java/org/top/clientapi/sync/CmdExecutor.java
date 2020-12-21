@@ -1,6 +1,7 @@
-package org.top.clientapi;
+package org.top.clientapi.sync;
 
 import lombok.extern.slf4j.Slf4j;
+import org.top.clientapi.OptionEnum;
 import org.top.clientapi.entity.SubmitResponse;
 import org.top.clientapi.util.PropertiesUtil;
 import org.top.rpc.ApiClient;
@@ -8,7 +9,7 @@ import org.top.rpc.ApiClient;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
-import static org.top.clientapi.ResultEntity.getEntity;
+import static org.top.clientapi.sync.ResultEntity.getEntity;
 
 /**
  * @author lubeilin

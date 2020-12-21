@@ -1,5 +1,6 @@
-package org.top.clientapi;
+package org.top.clientapi.sync;
 
+import org.top.clientapi.OptionEnum;
 import org.top.clientapi.codec.DefaultValueSerializer;
 import org.top.clientapi.codec.ValueSerializer;
 import org.top.clientapi.exception.RaftException;
@@ -18,7 +19,7 @@ public class DefaultValueOperations<V> implements ValueOperations<V> {
     private ValueSerializer<String> defaultSer = new DefaultValueSerializer<>();
     private Class<V> entityClass;
 
-    protected DefaultValueOperations(ValueSerializer<V> valueSerializer, Class<V> entityClass) {
+    public DefaultValueOperations(ValueSerializer<V> valueSerializer, Class<V> entityClass) {
         this.valueSerializer = valueSerializer;
         this.entityClass = entityClass;
     }

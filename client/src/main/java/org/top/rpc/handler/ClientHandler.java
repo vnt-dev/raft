@@ -2,7 +2,7 @@ package org.top.rpc.handler;
 
 import io.netty.channel.ChannelHandlerContext;
 import lombok.extern.slf4j.Slf4j;
-import org.top.clientapi.ResultEntity;
+import org.top.clientapi.sync.ResultEntity;
 import org.top.clientapi.async.AsyncResultEntity;
 import org.top.clientapi.entity.SubmitResponse;
 

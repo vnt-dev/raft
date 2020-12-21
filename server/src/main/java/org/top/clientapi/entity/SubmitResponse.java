@@ -41,7 +41,7 @@ public class SubmitResponse extends BaseMessage {
     /**
      * 消息id
      */
-    private byte[] id;
+    private String id;
     /**
      * 响应数据
      */

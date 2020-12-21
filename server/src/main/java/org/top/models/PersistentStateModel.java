@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.*;
 import org.top.core.RaftServerData;
 import org.top.core.machine.snapshot.SnapshotLoad;
+import org.top.exception.LogException;
 import org.top.rpc.Node;
 import org.top.rpc.codec.ProtoBufSerializer;
 import org.top.rpc.codec.Serializer;
@@ -83,7 +84,6 @@ public class PersistentStateModel {
      */
     public void pushLast(LogEntry logEntry) throws Exception {
         Transaction transaction = rocksDB.beginTransaction(new WriteOptions());
-        RaftServerData.lock.lock();
         try {
             int currentTerm = getCurrentTerm();
             long lastIndex = getLastIndex();
@@ -96,8 +96,6 @@ public class PersistentStateModel {
         } catch (Exception e) {
             transaction.rollback();
             throw e;
-        } finally {
-            RaftServerData.lock.unlock();
         }
     }
 
@@ -213,7 +211,7 @@ public class PersistentStateModel {
             return new LogEntry();
         }
         log.info("index:{},max:{}，raft:{}，min:{}", toLong(index), getLastIndex(), RaftServerData.serverState, new SnapshotLoad().getIndex());
-        throw new RuntimeException("数据异常");
+        throw new LogException("数据异常");
     }
 
     private void pushLog(byte[] index, LogEntry logEntry, Transaction transaction) throws Exception {

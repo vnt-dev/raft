@@ -1,10 +1,9 @@
-package org.top.clientapi;
+package org.top.clientapi.sync;
 
 import lombok.Getter;
 import org.top.clientapi.entity.SubmitRequest;
 import org.top.clientapi.entity.SubmitResponse;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +25,7 @@ public class ResultEntity {
     private volatile SubmitResponse response;
 
     public static void release(SubmitResponse response) {
-        ResultEntity resultEntity = msgMap.get(new String(response.getId(), StandardCharsets.UTF_8));
+        ResultEntity resultEntity = msgMap.get(response.getId());
         if (resultEntity != null) {
             resultEntity.response = response;
             resultEntity.semaphore.release();
@@ -37,15 +36,13 @@ public class ResultEntity {
         msgMap.remove(entity.id);
     }
 
-    public static ResultEntity getEntity(String option, byte[] key, byte[]  value) {
+    public static ResultEntity getEntity(String option, byte[] key, byte[] value) {
         String id = UUID.randomUUID().toString();
         SubmitRequest submitRequest = new SubmitRequest();
         submitRequest.setOption(option);
         submitRequest.setKey(key);
-        submitRequest.setId(id.getBytes(StandardCharsets.UTF_8));
-        if (value != null) {
-            submitRequest.setVal(value);
-        }
+        submitRequest.setId(id);
+        submitRequest.setVal(value);
         ResultEntity resultEntity = new ResultEntity();
         resultEntity.id = id;
         resultEntity.request = submitRequest;

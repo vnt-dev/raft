@@ -17,14 +17,11 @@ public interface OperationFacade {
     SubmitResponse submit(SubmitRequest msg);
 
     /**
-     * 等待回复
-     */
-    void await();
-
-    /**
-     * 获取结果
+     * 执行成功的回调
      *
-     * @return 结果
+     * @param index
+     * @param success
+     * @param data
      */
-    SubmitResponse result();
+    void callback(String index, boolean success, byte[] data);
 }

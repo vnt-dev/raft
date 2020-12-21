@@ -15,7 +15,7 @@ import org.top.rpc.codec.BaseMessage;
 @NoArgsConstructor
 @ToString
 public class SubmitRequest extends BaseMessage {
-    private byte[] id;
+    private String id;
     private String option;
     private byte[] key;
     private byte[] val;

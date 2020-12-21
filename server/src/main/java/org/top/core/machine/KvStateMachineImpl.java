@@ -58,8 +58,10 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     @Override
     public byte[] execute(LogEntry logEntry) throws Exception {
         OptionEnum optionEnum = OptionEnum.getByCode(logEntry.getOption());
-        if (optionEnum == OptionEnum.UP && logEntry.getTerm() == PersistentStateModel.getModel().getCurrentTerm()) {
-            RaftServerData.leaderUp();
+        if (optionEnum == OptionEnum.UP) {
+            if (logEntry.getTerm() == PersistentStateModel.getModel().getCurrentTerm()) {
+                RaftServerData.leaderUp();
+            }
             return null;
         }
         if (optionEnum == null) {
@@ -68,7 +70,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
         Transaction transaction = rocksDB.beginTransaction(new WriteOptions());
         try {
             byte[] bytes = null;
-            if (isExec(logEntry.getId(), transaction)) {
+            if (isExec(logEntry.getId().getBytes(StandardCharsets.UTF_8), transaction)) {
                 log.info("命令已执行 :" + logEntry.getIndex());
                 return get(logEntry.getKey());
             }
@@ -211,7 +213,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
         if (optionEnum == null) {
             return;
         }
-        byte[] idKey = addPrefix(SERIAL_NUMBER_PRE, logEntry.getId());
+        byte[] idKey = addPrefix(SERIAL_NUMBER_PRE, logEntry.getId().getBytes(StandardCharsets.UTF_8));
         byte[] rs = rocksDB.get(idKey);
         if (rs == null) {
             //没有序列号说明该指令已经执行过了，不需要重复执行
