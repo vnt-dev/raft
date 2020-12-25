@@ -16,10 +16,15 @@ public interface StateMachineHandler {
     /**
      * 状态机循环
      */
-    void loop();
+    void startLoop();
 
     /**
      * 启动循环
      */
     void start();
+
+    /**
+     * 暂停
+     */
+    void awaitPause();
 }

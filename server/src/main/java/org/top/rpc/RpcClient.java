@@ -114,7 +114,7 @@ public class RpcClient {
                 event.exe(node);
             }
         } catch (Exception e) {
-            log.info("发送失败", e);
+            log.error("发送失败", e);
         }
     }
 
@@ -136,7 +136,7 @@ public class RpcClient {
             try {
                 e.close().await();
             } catch (Exception ex) {
-                log.info("关闭失败");
+                log.error("关闭失败");
             }
         });
     }

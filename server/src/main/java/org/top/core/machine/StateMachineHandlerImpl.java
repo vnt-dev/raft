@@ -5,17 +5,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.top.core.RaftServerData;
 import org.top.core.ServerStateEnum;
 import org.top.core.SnapshotExec;
-import org.top.core.log.OperationFacadeImpl;
+import org.top.core.log.LogIndexSemaphore;
 import org.top.exception.RaftException;
 import org.top.models.LogEntry;
 import org.top.models.PersistentStateModel;
 import org.top.models.ServerStateModel;
 
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author lubeilin
@@ -24,11 +22,18 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class StateMachineHandlerImpl implements StateMachineHandler {
     private static Semaphore semaphore = new Semaphore(0);
-    ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1)
-            , r -> new Thread(r, "stateMachine-thread"));
+    private static StateMachineHandlerImpl stateMachineHandler = new StateMachineHandlerImpl();
     private StateMachine stateMachine = new KvStateMachineImpl();
     private PersistentStateModel model = PersistentStateModel.getModel();
-    private OperationFacadeImpl operationFacade = new OperationFacadeImpl();
+    private ReentrantLock lock = new ReentrantLock();
+
+    private StateMachineHandlerImpl() {
+
+    }
+
+    public static StateMachineHandlerImpl getInstance() {
+        return stateMachineHandler;
+    }
 
     @Override
     public void commit() throws Exception {
@@ -47,32 +52,44 @@ public class StateMachineHandlerImpl implements StateMachineHandler {
             }
             serverState.setLastApplied(i);
             if (RaftServerData.serverStateEnum == ServerStateEnum.LEADER) {
-                operationFacade.callback(last.getId(), success, rs);
-//                new LogIndexSemaphore().signal(last.getId(), success, rs);
+                LogIndexSemaphore.getInstance().offer(last.getId(), success, rs);
             }
         }
-        //生成快照
         SnapshotExec.getInstance().apply();
     }
 
     @Override
-    public void loop() {
-        executor.execute(() -> {
+    public void startLoop() {
+        new Thread(() -> {
             //noinspection InfiniteLoopStatement
             for (; ; ) {
                 try {
                     semaphore.acquire();
-                    commit();
+                    lock.lock();
+                    try {
+                        commit();
+                    } finally {
+                        lock.unlock();
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
             }
-        });
-
+        }, "stateMachine-thread").start();
     }
 
     @Override
     public void start() {
         semaphore.release();
+    }
+
+    @Override
+    public void awaitPause() {
+        lock.lock();
+        try {
+            //获取到了一次锁，说明循环暂停了，此方法配合重置状态机使用
+        } finally {
+            lock.unlock();
+        }
     }
 }

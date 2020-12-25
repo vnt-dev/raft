@@ -3,6 +3,7 @@ package org.top.clientapi.sync;
 import lombok.extern.slf4j.Slf4j;
 import org.top.clientapi.OptionEnum;
 import org.top.clientapi.entity.SubmitResponse;
+import org.top.clientapi.exception.RaftException;
 import org.top.clientapi.util.PropertiesUtil;
 import org.top.rpc.ApiClient;
 
@@ -17,18 +18,21 @@ import static org.top.clientapi.sync.ResultEntity.getEntity;
  */
 @Slf4j
 public class CmdExecutor {
-    private static final int TRY_NUM = 3;
-    private static long outTime = PropertiesUtil.getLong("outTime");
+    private static final int TRY_COUNT = 3;
+    private static long outTime = PropertiesUtil.getLong("outTime", 3000);
     private ApiClient apiClient = ApiClient.getApiClient();
 
     public byte[] cmd(OptionEnum optionEnum, byte[] key, byte[] value) {
+        if (apiClient.inEventLoop()) {
+            throw new RaftException("不能在异步回调中使用同步命令");
+        }
         ResultEntity resultEntity = getEntity(optionEnum.getCode(), key, value);
         send(resultEntity, 0);
         return resultEntity.getResponse().getData();
     }
 
     private void send(ResultEntity resultEntity, int num) {
-        if (num > TRY_NUM) {
+        if (num > TRY_COUNT) {
             log.info("发送超时，请求：{}，响应：{}", resultEntity.getRequest(), resultEntity.getResponse());
             throw new RuntimeException("发送超时");
         }

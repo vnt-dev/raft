@@ -2,6 +2,7 @@ package org.top.core.machine.snapshot;
 
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.*;
+import org.top.exception.RaftInitException;
 import org.top.rpc.utils.PropertiesUtil;
 
 import java.nio.charset.StandardCharsets;
@@ -40,6 +41,7 @@ public class SnapshotLoad {
             snapshotDB = TransactionDB.open(options, dbOptions, PropertiesUtil.getString("snapshot"));
         } catch (RocksDBException e) {
             log.error(e.getMessage(), e);
+            throw new RaftInitException("快照加载失败");
         }
     }
 

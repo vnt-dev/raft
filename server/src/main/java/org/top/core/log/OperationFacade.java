@@ -1,5 +1,6 @@
 package org.top.core.log;
 
+import io.netty.channel.Channel;
 import org.top.clientapi.entity.SubmitRequest;
 import org.top.clientapi.entity.SubmitResponse;
 
@@ -17,11 +18,14 @@ public interface OperationFacade {
     SubmitResponse submit(SubmitRequest msg);
 
     /**
-     * 执行成功的回调
+     * 建立连接
      *
-     * @param index
-     * @param success
-     * @param data
+     * @param channel
      */
-    void callback(String index, boolean success, byte[] data);
+    void open(Channel channel);
+
+    /**
+     * 客户端关闭连接
+     */
+    void close();
 }

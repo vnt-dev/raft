@@ -7,10 +7,7 @@ import org.top.clientapi.entity.SubmitRequest;
 import org.top.models.LogEntry;
 import org.top.models.PersistentStateModel;
 
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * 追加日志条目执行器
@@ -21,26 +18,25 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class AppendLogEntriesExec {
-    private ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1)
-            , r -> {
-        Thread thread = new Thread(r, "append-log-thread");
-        return thread;
-    });
-    private AppendEntriesComponent appendEntriesComponent = new AppendEntriesComponent();
     private static AppendLogEntriesExec logEntriesExec = new AppendLogEntriesExec();
+    private AppendEntriesComponent appendEntriesComponent = AppendEntriesComponent.getInstance();
     private LinkedBlockingQueue<SubmitRequest> blockingQueue = new LinkedBlockingQueue<>();
 
     public static AppendLogEntriesExec getInstance() {
         return logEntriesExec;
     }
 
-    public void loop() {
-        executor.execute(() -> {
+    public void startLoop() {
+        new Thread(() -> {
             log.info("追加日志线程启动");
             //noinspection InfiniteLoopStatement
             for (; ; ) {
                 try {
                     SubmitRequest request = blockingQueue.take();
+                    if (RaftServerData.serverStateEnum != ServerStateEnum.LEADER) {
+                        blockingQueue.clear();
+                        continue;
+                    }
                     do {
                         PersistentStateModel model = PersistentStateModel.getModel();
                         LogEntry logEntry = new LogEntry();
@@ -52,10 +48,10 @@ public class AppendLogEntriesExec {
                     } while ((request = blockingQueue.poll()) != null);
                     appendEntriesComponent.broadcastAppendEntries();
                 } catch (Exception e) {
-                    log.info("追加日志失败",e);
+                    log.info("追加日志失败", e);
                 }
             }
-        });
+        }, "append-log-thread").start();
     }
 
     public void signal(SubmitRequest msg) {

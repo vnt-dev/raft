@@ -38,29 +38,35 @@ public class VoteReqHandler extends BaseMessageHandler<VoteRequest> {
         } else {
             FollowerConvert.convertFollower(msg.getTerm());
         }
+        PersistentStateModel model = PersistentStateModel.getModel();
         if (RaftServerData.serverStateEnum != ServerStateEnum.FOLLOWER) {
-            log.info("不是从节点不响应：{}", msg);
+            ctx.writeAndFlush(new VoteResponse(msg.getId(), model.getCurrentTerm(), false));
             return;
         }
-        PersistentStateModel model = PersistentStateModel.getModel();
-        int currentTerm = model.getCurrentTerm();
-        if (currentTerm > msg.getTerm()) {
-            ctx.writeAndFlush(new VoteResponse(msg.getId(), currentTerm, false));
-        } else if (notVoteOther(msg, model.getVotedFor()) && upToDate(msg, model.getLast())) {
-            RaftServerData.heartbeatTime = System.currentTimeMillis();
-            if (msg.isBeforehand()) {
-                Transaction transaction = model.begin();
-                try {
-                    model.setVotedFor(msg.getCandidateId(), transaction);
-                    transaction.commit();
-                } catch (Exception e) {
-                    transaction.rollback();
-                    throw e;
+        RaftServerData.lock.lock();
+        try {
+            int currentTerm = model.getCurrentTerm();
+            if (currentTerm > msg.getTerm()) {
+                ctx.writeAndFlush(new VoteResponse(msg.getId(), currentTerm, false));
+            } else if (notVoteOther(msg, model.getVotedFor()) && upToDate(msg, model.getLast())) {
+                RaftServerData.heartbeatTime = System.currentTimeMillis();
+                if (!msg.isBeforehand()) {
+                    Transaction transaction = model.begin();
+                    try {
+                        model.setVotedFor(msg.getCandidateId(), transaction);
+                        transaction.commit();
+                    } catch (Exception e) {
+                        transaction.rollback();
+                        throw e;
+                    }
                 }
+
+                ctx.writeAndFlush(new VoteResponse(msg.getId(), currentTerm, true));
+            } else {
+                ctx.writeAndFlush(new VoteResponse(msg.getId(), currentTerm, false));
             }
-            ctx.writeAndFlush(new VoteResponse(msg.getId(), currentTerm, true));
-        } else {
-            ctx.writeAndFlush(new VoteResponse(msg.getId(), currentTerm, false));
+        } finally {
+            RaftServerData.lock.unlock();
         }
     }
 

@@ -14,7 +14,7 @@ import org.top.rpc.entity.SnapshotRes;
  */
 @Slf4j
 public class SnapshotResHandler extends BaseMessageHandler<SnapshotRes> {
-    private AppendEntriesComponent component = new AppendEntriesComponent();
+    private AppendEntriesComponent component = AppendEntriesComponent.getInstance();
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, SnapshotRes msg) throws Exception {

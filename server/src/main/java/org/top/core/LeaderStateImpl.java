@@ -22,11 +22,21 @@ import org.top.rpc.RpcClient;
 public class LeaderStateImpl extends AbstractServerStateTransformer {
     @Override
     public void execute() throws Exception {
-        log.info("领导者,任期：{}", PersistentStateModel.getModel().getCurrentTerm());
-        RaftServerData.initLeader();
-        RaftServerData.serverStateEnum = ServerStateEnum.LEADER;
+        RaftServerData.lock.lock();
+        try {
+            if (RaftServerData.serverStateEnum == ServerStateEnum.CANDIDATE) {
+                log.info("领导者,任期：{}", PersistentStateModel.getModel().getCurrentTerm());
+                RaftServerData.serverStateEnum = ServerStateEnum.LEADER;
+            } else {
+                return;
+            }
+        } finally {
+            RaftServerData.lock.unlock();
+        }
         RaftServerData.leaderId = NodeGroup.MYSELF;
-        new AppendEntriesComponent().broadcastLeader();
+
+        RaftServerData.initLeader();
+        AppendEntriesComponent.getInstance().broadcastLeader();
         while (RaftServerData.serverStateEnum == ServerStateEnum.LEADER) {
             //不断重连
             RpcClient.getRpcClient().reConn();
@@ -42,7 +52,6 @@ public class LeaderStateImpl extends AbstractServerStateTransformer {
             }
         }
         RaftServerData.leaderDown();
-        executeNext();
     }
 
     @Override

@@ -50,6 +50,15 @@ public class ApiClient {
         return apiClient;
     }
 
+    public boolean inEventLoop() {
+        for (Channel channel : map.values()) {
+            if (channel.eventLoop().inEventLoop()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private Channel connect(Node node) {
         return map.computeIfAbsent(node, k ->
                 connect0(node)

@@ -72,7 +72,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
             byte[] bytes = null;
             if (isExec(logEntry.getId().getBytes(StandardCharsets.UTF_8), transaction)) {
                 log.info("命令已执行 :" + logEntry.getIndex());
-                return get(logEntry.getKey());
+                throw new RaftException("命令已执行");
             }
             switch (optionEnum) {
                 case SET:
@@ -83,11 +83,11 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
                     break;
                 case INCR:
                 case DECR:
-                    bytes = calculation(optionEnum, get(logEntry.getKey()), logEntry.getVal());
+                    bytes = calculation(optionEnum, get(logEntry.getKey(), transaction), logEntry.getVal());
                     set(logEntry.getKey(), bytes, transaction);
                     break;
                 case SET_IF_ABSENT:
-                    if (get(logEntry.getKey()) == null) {
+                    if (get(logEntry.getKey(), transaction) == null) {
                         //不存在
                         set(logEntry.getKey(), logEntry.getVal(), transaction);
                         bytes = DataConstants.TRUE;
@@ -96,7 +96,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
                     }
                     break;
                 case SET_IF_PRESENT:
-                    if (get(logEntry.getKey()) != null) {
+                    if (get(logEntry.getKey(), transaction) != null) {
                         //存在
                         set(logEntry.getKey(), logEntry.getVal(), transaction);
                         bytes = DataConstants.TRUE;
@@ -186,6 +186,10 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     @Override
     public byte[] get(byte[] key) throws Exception {
         return rocksDB.get(addPrefix(STRING, key));
+    }
+
+    public byte[] get(byte[] key, Transaction transaction) throws Exception {
+        return transaction.get(new ReadOptions(), addPrefix(STRING, key));
     }
 
     @Override

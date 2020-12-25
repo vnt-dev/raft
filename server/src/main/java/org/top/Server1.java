@@ -11,10 +11,10 @@ import org.top.rpc.utils.PropertiesUtil;
 @Slf4j
 public class Server1 {
     public static void main(String[] args) {
-        PropertiesUtil.setValue("port","8041");
-        PropertiesUtil.setValue("log","./data/log1");
-        PropertiesUtil.setValue("data","./data/data1");
-        PropertiesUtil.setValue("snapshot","./data/snapshot1");
+        PropertiesUtil.setValue("port", "8041");
+        PropertiesUtil.setValue("log", "./data/log1");
+        PropertiesUtil.setValue("data", "./data/data1");
+        PropertiesUtil.setValue("snapshot", "./data/snapshot1");
         new ServerStateTransformerStarter().start();
     }
 }

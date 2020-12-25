@@ -49,7 +49,6 @@ public class FollowerStateImpl extends AbstractServerStateTransformer {
                 }
             }
         }
-        executeNext();
     }
 
     private boolean votePro(long time) throws Exception {
@@ -68,7 +67,6 @@ public class FollowerStateImpl extends AbstractServerStateTransformer {
         voteRequest.setLastLogTerm(last.getTerm());
         VoteSemaphore.reset(voteRequest.getId());
         VoteSemaphore.vote(voteRequest.getId());
-        log.info("{}", voteRequest);
         RpcClient rpcClient = RpcClient.getRpcClient();
         rpcClient.reConn();
         rpcClient.sendAll(e -> voteRequest);

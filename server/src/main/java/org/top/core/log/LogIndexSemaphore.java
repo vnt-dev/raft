@@ -1,11 +1,12 @@
 package org.top.core.log;
 
+import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
+import org.top.clientapi.entity.SubmitResponse;
 
-import java.util.Objects;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * 主节点日志写入信号量
@@ -15,75 +16,62 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 public class LogIndexSemaphore {
-    private static ConcurrentHashMap<String, IndexNode> nodeMap = new ConcurrentHashMap<>();
+    private static LogIndexSemaphore logIndexSemaphore = new LogIndexSemaphore();
+    private LinkedBlockingQueue<IndexData> blockingQueue = new LinkedBlockingQueue<>();
+    private Map<String, Channel> map = new ConcurrentHashMap<>();
 
-    public void addListener(String id) {
-        nodeMap.put(id, new IndexNode(id, new Semaphore(0), null));
+    private LogIndexSemaphore() {
+
     }
 
-    public IndexNode getData(String  index) {
-        return nodeMap.get(index);
+    public static LogIndexSemaphore getInstance() {
+        return logIndexSemaphore;
     }
 
-    public void remove(String index) {
-        nodeMap.remove(index);
+    public void addListener(String id, Channel channel) {
+        map.put(id, channel);
     }
 
-    /**
-     * 等待通知
-     *
-     * @param time 最大等待时间
-     * @param unit 单位
-     * @return 是否提前被唤醒
-     * @throws InterruptedException 中断
-     */
-    public boolean await(String index, long time, TimeUnit unit) throws InterruptedException {
-        IndexNode indexNode = nodeMap.get(index);
-        if (indexNode == null) {
-            return false;
-        }
-        return indexNode.semaphore.tryAcquire(time, unit);
+    public void remove(Channel channel) {
+        map.entrySet()
+                .removeIf(entry -> entry.getValue().equals(channel));
     }
 
-    /**
-     * 唤醒第一个
-     */
-    public void signal(String  index, boolean success, byte[] data) {
-        IndexNode indexNode = nodeMap.get(index);
-        if (indexNode != null) {
-            indexNode.success = success;
-            indexNode.data = data;
-            indexNode.semaphore.release();
-        }
+    public void startLoop() {
+        new Thread(() -> {
+            //noinspection InfiniteLoopStatement
+            for (; ; ) {
+                try {
+                    IndexData indexData = blockingQueue.take();
+                    Channel channel = map.remove(indexData.id);
+                    if (channel != null) {
+                        if (indexData.success) {
+                            channel.writeAndFlush(new SubmitResponse(SubmitResponse.SUCCESS, null, indexData.id, indexData.data));
+                        } else {
+                            channel.writeAndFlush(new SubmitResponse(SubmitResponse.FAIL, null, indexData.id, indexData.data));
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    log.error(e.getMessage(), e);
+                }
+            }
+        }, "operation-facade-thread").start();
     }
 
-    public static class IndexNode {
-        volatile String index;
-        volatile boolean success;
-        volatile byte[] data;
-        volatile Semaphore semaphore;
+    public void offer(String id, boolean success, byte[] data) {
+        IndexData indexData = new IndexData(id, success, data);
+        blockingQueue.offer(indexData);
+    }
 
-        public IndexNode(String index, Semaphore semaphore, byte[] data) {
-            this.index = index;
-            this.semaphore = semaphore;
+    static class IndexData {
+        private volatile String id;
+        private volatile boolean success;
+        private volatile byte[] data;
+
+        public IndexData(String id, boolean success, byte[] data) {
+            this.id = id;
+            this.success = success;
             this.data = data;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (!(o instanceof IndexNode)) {
-                return false;
-            }
-            IndexNode indexNode = (IndexNode) o;
-            return index == indexNode.index;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(index);
         }
     }
 }

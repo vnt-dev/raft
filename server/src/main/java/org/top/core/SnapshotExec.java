@@ -13,10 +13,7 @@ import org.top.rpc.Node;
 import org.top.rpc.utils.PropertiesUtil;
 
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -31,18 +28,12 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class SnapshotExec {
     private static SnapshotExec snapshotExec = new SnapshotExec();
-    private final int snapshotNum = PropertiesUtil.getInt("snapshot_num");
+    private final int snapshotNumBegin = PropertiesUtil.getInt("snapshot_num_begin");
+    private final int snapshotNumEnd = PropertiesUtil.getInt("snapshot_num_end");
     /**
      * 暂停生成快照的时间
      */
     private final long waitTime = PropertiesUtil.getLong("snapshot_wait_time");
-    ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(1)
-            , r -> {
-        Thread thread = new Thread(r, "snapshot-thread");
-        //快照线程设置较低优先级
-        thread.setPriority(2);
-        return thread;
-    });
     private SnapshotService snapshotService = new KvStateMachineImpl();
     private PersistentStateModel model = PersistentStateModel.getModel();
     private ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
@@ -64,10 +55,9 @@ public class SnapshotExec {
         return snapshotExec;
     }
 
-    public void saveLoop() {
-        executor.execute(() -> {
+    public void startLoop() {
+        Thread thread = new Thread(() -> {
             log.info("快照生成线程启动");
-            //noinspection InfiniteLoopStatement
             for (; ; ) {
                 try {
                     run();
@@ -75,7 +65,9 @@ public class SnapshotExec {
                     log.error(e.getMessage(), e);
                 }
             }
-        });
+        }, "snapshot-thread");
+        thread.setPriority(2);
+        thread.start();
     }
 
 
@@ -100,13 +92,12 @@ public class SnapshotExec {
                 // 最后一条已经应用到状态机的日志和快照太接近也需要暂停
                 while (readMap.size() > 0
                         || readEndTime > System.currentTimeMillis() - waitTime
-                        || RaftServerData.serverState.getLastApplied() <= index + snapshotNum / 10) {
+                        || RaftServerData.serverState.getLastApplied() <= index + snapshotNumEnd) {
                     conditionRun.await();
                     index = snapshotService.snapshotLastIndex() + 1;
                 }
                 LogEntry logEntry = model.getLog(index);
                 snapshotService.save(logEntry);
-//                log.info("生成快照：{}", logEntry);
                 model.remove(index - 1);
             }
         } finally {
@@ -116,7 +107,7 @@ public class SnapshotExec {
 
     public void apply() throws Exception {
         if (readMap.size() <= 0
-                && RaftServerData.serverState.getLastApplied() >= snapshotService.snapshotLastIndex() + snapshotNum
+                && RaftServerData.serverState.getLastApplied() >= snapshotService.snapshotLastIndex() + snapshotNumBegin
                 && readEndTime <= System.currentTimeMillis() - waitTime
                 && writeLock.tryLock()) {
             try {

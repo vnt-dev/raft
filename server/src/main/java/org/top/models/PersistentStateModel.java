@@ -5,6 +5,7 @@ import org.rocksdb.*;
 import org.top.core.RaftServerData;
 import org.top.core.machine.snapshot.SnapshotLoad;
 import org.top.exception.LogException;
+import org.top.exception.RaftInitException;
 import org.top.rpc.Node;
 import org.top.rpc.codec.ProtoBufSerializer;
 import org.top.rpc.codec.Serializer;
@@ -39,13 +40,12 @@ public class PersistentStateModel {
     private final static byte[] VOTED_FOR_KEY = "voted_for".getBytes(StandardCharsets.UTF_8);
     private final static byte[] LOG = "log".getBytes(StandardCharsets.UTF_8);
     private static TransactionDB rocksDB;
+    private static PersistentStateModel model = new PersistentStateModel();
 
     static {
         RocksDB.loadLibrary();
         init();
     }
-
-    private static PersistentStateModel model = new PersistentStateModel();
 
     private Serializer<LogEntry> logEntrySerializer = new ProtoBufSerializer<>();
 
@@ -60,6 +60,7 @@ public class PersistentStateModel {
             rocksDB = TransactionDB.open(options, dbOptions, PropertiesUtil.getString("log"));
         } catch (RocksDBException e) {
             log.error(e.getMessage(), e);
+            throw new RaftInitException("日志加载失败");
         }
     }
 
@@ -84,6 +85,7 @@ public class PersistentStateModel {
      */
     public void pushLast(LogEntry logEntry) throws Exception {
         Transaction transaction = rocksDB.beginTransaction(new WriteOptions());
+        RaftServerData.lock.lock();
         try {
             int currentTerm = getCurrentTerm();
             long lastIndex = getLastIndex();
@@ -96,6 +98,8 @@ public class PersistentStateModel {
         } catch (Exception e) {
             transaction.rollback();
             throw e;
+        } finally {
+            RaftServerData.lock.unlock();
         }
     }
 

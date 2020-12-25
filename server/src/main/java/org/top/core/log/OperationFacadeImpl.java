@@ -15,8 +15,6 @@ import org.top.rpc.NodeGroup;
 import org.top.utils.DataConstants;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author lubeilin
@@ -24,15 +22,13 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 public class OperationFacadeImpl implements OperationFacade {
-    private static StateMachine stateMachine = new KvStateMachineImpl();
-    private static Map<String, Channel> map = new ConcurrentHashMap<>();
+    private StateMachine stateMachine = new KvStateMachineImpl();
+    private LogIndexSemaphore logIndexSemaphore = LogIndexSemaphore.getInstance();
     private Channel channel;
 
-    public OperationFacadeImpl() {
-    }
 
-    public OperationFacadeImpl(Channel channel) {
-        this.channel = channel;
+    public OperationFacadeImpl() {
+
     }
 
     @Override
@@ -64,7 +60,7 @@ public class OperationFacadeImpl implements OperationFacade {
                         break;
                     default:
                 }
-                map.put(msg.getId(), channel);
+                logIndexSemaphore.addListener(msg.getId(), channel);
                 AppendLogEntriesExec.getInstance().signal(msg);
                 return null;
             } else {
@@ -79,15 +75,14 @@ public class OperationFacadeImpl implements OperationFacade {
     }
 
     @Override
-    public void callback(String index, boolean success, byte[] data) {
-        Channel channel = map.remove(index);
-        if (channel != null) {
-            if (success) {
-                channel.writeAndFlush(new SubmitResponse(SubmitResponse.SUCCESS, null, index, data));
-            } else {
-                channel.writeAndFlush(new SubmitResponse(SubmitResponse.FAIL, null, index, data));
-            }
-        }
+    public void open(Channel channel) {
+        this.channel = channel;
     }
 
+    @Override
+    public void close() {
+        if (channel != null) {
+            logIndexSemaphore.remove(channel);
+        }
+    }
 }

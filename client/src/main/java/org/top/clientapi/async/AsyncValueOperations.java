@@ -94,4 +94,46 @@ public interface AsyncValueOperations<V> {
      * @param resultCallback 结果回调
      */
     void decrBy(String key, long v, ResultCallback<Long> resultCallback);
+
+    /**
+     * 不存在时修改
+     *
+     * @param key key
+     * @param v   value
+     */
+    void setIfAbsent(String key, V v);
+
+    /**
+     * 不存在时修改
+     *
+     * @param key            key
+     * @param v              value
+     * @param resultCallback 结果回调
+     */
+    void setIfAbsent(String key, V v, ResultCallback<Boolean> resultCallback);
+
+    /**
+     * 存在则修改
+     *
+     * @param key key
+     * @param v   value
+     */
+    void setIfPresent(String key, V v);
+
+    /**
+     * 存在则修改
+     *
+     * @param key            key
+     * @param v              value
+     * @param resultCallback 结果回调
+     */
+    void setIfPresent(String key, V v, ResultCallback<Boolean> resultCallback);
+
+    /**
+     * 是否存在
+     *
+     * @param key            key
+     * @param resultCallback 结果回调
+     */
+    void hasKey(String key, ResultCallback<Boolean> resultCallback);
 }

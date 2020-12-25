@@ -17,6 +17,9 @@ import org.top.rpc.entity.SnapshotReq;
 import org.top.rpc.utils.PropertiesUtil;
 
 import java.util.LinkedList;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * 生成各节点待接收的日志
@@ -29,15 +32,51 @@ public class AppendEntriesComponent {
     private final int sendLogMaxNum = PropertiesUtil.getInt("send_log_max_num");
     private final int sendSnapshotMaxNum = PropertiesUtil.getInt("send_snapshot_max_num");
     private final int cacheLogNum = PropertiesUtil.getInt("cache_log_num");
+    private final long heartbeatTime = PropertiesUtil.getLong("heartbeat") / 2;
     private SnapshotService snapshotService = new KvStateMachineImpl();
     private PersistentStateModel persistentState = PersistentStateModel.getModel();
     private SnapshotExec snapshotExec = SnapshotExec.getInstance();
+    private static AppendEntriesComponent appendEntriesComponent = new AppendEntriesComponent();
+    private LinkedBlockingQueue<Node> blockingQueue = new LinkedBlockingQueue<>();
+    /**
+     * 降低心跳频率
+     */
+    private Map<Node, Long> timeMap = new ConcurrentHashMap<>();
 
-    public void broadcastAppendEntries() {
-        RpcClient.getRpcClient().sendAll(node -> appendRequest(node, false), node -> snapshotExec.unRead(node));
+    private AppendEntriesComponent() {
+
     }
 
-    public void appendEntriesOne(Node node) {
+    public void pushHeartbeat(Node node) {
+        if (!blockingQueue.contains(node)) {
+            blockingQueue.offer(node);
+        }
+    }
+
+    public void startHeartbeatLoop() {
+        new Thread(() -> {
+            for (; ; ) {
+                try {
+                    Node node1 = blockingQueue.take();
+                    appendEntriesOne(node1);
+                } catch (Exception e) {
+                    log.error(e.getMessage(), e);
+                }
+            }
+        }, "heartbeat-thread").start();
+    }
+
+    public static AppendEntriesComponent getInstance() {
+        return appendEntriesComponent;
+    }
+
+    public void broadcastAppendEntries() {
+        if (cacheLogNum >= 0) {
+            RpcClient.getRpcClient().sendAll(node -> appendRequest(node, false), node -> snapshotExec.unRead(node));
+        }
+    }
+
+    private void appendEntriesOne(Node node) {
         RpcClient.getRpcClient().sendOne(node, n -> appendRequest(n, true), n -> snapshotExec.unRead(n));
     }
 
@@ -50,6 +89,11 @@ public class AppendEntriesComponent {
     }
 
     public BaseMessage appendRequest(Node node, boolean heartbeat) throws Exception {
+        if (heartbeat) {
+            if (System.currentTimeMillis() < timeMap.getOrDefault(node, 0L) + heartbeatTime) {
+                return null;
+            }
+        }
         if (snapshotExec.isRead(node)) {
             return null;
         }
@@ -72,9 +116,10 @@ public class AppendEntriesComponent {
             }
         }
         if (!heartbeat) {
-            if (cacheLogNum == -1 || appendLog.list == null || appendLog.list.size() < cacheLogNum) {
+            if (appendLog.list == null || appendLog.list.size() <= cacheLogNum) {
                 return null;
             }
+            timeMap.put(node, System.currentTimeMillis());
         }
         AppendEntriesRequest request = new AppendEntriesRequest();
         int currentTerm = persistentState.getCurrentTerm();

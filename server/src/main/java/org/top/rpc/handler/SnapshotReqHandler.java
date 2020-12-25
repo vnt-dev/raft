@@ -6,6 +6,7 @@ import org.top.core.FollowerConvert;
 import org.top.core.RaftServerData;
 import org.top.core.SnapshotExec;
 import org.top.core.machine.KvStateMachineImpl;
+import org.top.core.machine.StateMachineHandlerImpl;
 import org.top.models.PersistentStateModel;
 import org.top.rpc.NodeGroup;
 import org.top.rpc.entity.SnapshotReq;
@@ -31,7 +32,7 @@ public class SnapshotReqHandler extends BaseMessageHandler<SnapshotReq> {
     private static KvStateMachineImpl kvStateMachine = new KvStateMachineImpl();
 
     @Override
-    protected synchronized void channelRead0(ChannelHandlerContext ctx, SnapshotReq msg) throws Exception {
+    protected void channelRead0(ChannelHandlerContext ctx, SnapshotReq msg) throws Exception {
         log.info("{}", msg.getLastIncludedIndex());
         RaftServerData.isBusy = true;
         RaftServerData.lock.lock();
@@ -47,14 +48,20 @@ public class SnapshotReqHandler extends BaseMessageHandler<SnapshotReq> {
             }
             RaftServerData.heartbeatTime = System.currentTimeMillis();
             RaftServerData.leaderId = msg.getLeaderId();
+            if (msg.isFirst()) {
+                RaftServerData.serverState.setCommitIndex(0);
+                RaftServerData.serverState.setLastApplied(0);
+
+            }
             SnapshotExec.getInstance().getWriteLock().lock();
             try {
                 if (msg.isFirst()) {
-                    log.info("开始重置数据");
-                    RaftServerData.serverState.setCommitIndex(0);
-                    RaftServerData.serverState.setLastApplied(0);
-                    stateModel.reset();
+                    //等待状态机循环停止
+                    StateMachineHandlerImpl.getInstance().awaitPause();
+                    //重置状态机和快照
                     kvStateMachine.reset();
+                    //重置日志
+                    stateModel.reset();
                     log.info("重置数据结束");
                 }
                 if (msg.getData() != null) {

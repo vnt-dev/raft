@@ -16,7 +16,7 @@ import org.top.rpc.handler.BaseMessageHandler;
  */
 @Slf4j
 public class FacadeHandler extends BaseMessageHandler<SubmitRequest> {
-    private OperationFacade facade;
+    private OperationFacade facade = new OperationFacadeImpl();
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, SubmitRequest msg) {
@@ -27,13 +27,14 @@ public class FacadeHandler extends BaseMessageHandler<SubmitRequest> {
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        facade = new OperationFacadeImpl(ctx.channel());
+    public void channelActive(ChannelHandlerContext ctx) {
+        facade.open(ctx.channel());
         ctx.fireChannelActive();
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    public void channelInactive(ChannelHandlerContext ctx) {
+        facade.close();
         ctx.fireChannelInactive();
     }
 

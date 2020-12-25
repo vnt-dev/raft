@@ -58,7 +58,6 @@ public class CandidateStateImpl extends AbstractServerStateTransformer {
             VoteSemaphore.vote(voteRequest.getId());
             rpcClient.sendAll(e -> voteRequest);
         }
-        executeNext();
     }
 
     @Override

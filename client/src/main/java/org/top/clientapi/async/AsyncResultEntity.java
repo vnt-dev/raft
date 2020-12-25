@@ -24,7 +24,11 @@ public class AsyncResultEntity {
         AsyncResultEntity asyncResultEntity = msgMap.remove(response.getId());
         if (asyncResultEntity != null) {
             if (asyncResultEntity.responseCallback != null) {
-                asyncResultEntity.responseCallback.callback(response.getCode(), response.getData());
+                try {
+                    asyncResultEntity.responseCallback.callback(response.getCode(), response.getData());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
             return true;
         }

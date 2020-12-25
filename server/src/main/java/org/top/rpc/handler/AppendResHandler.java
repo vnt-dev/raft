@@ -24,8 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> {
     protected Node followerNode;
-    private StateMachineHandler stateMachineHandler = new StateMachineHandlerImpl();
-    private AppendEntriesComponent appendEntriesComponent = new AppendEntriesComponent();
+    private StateMachineHandler stateMachineHandler = StateMachineHandlerImpl.getInstance();
+    private AppendEntriesComponent appendEntriesComponent = AppendEntriesComponent.getInstance();
 
     @Override
     public void channelActive(ChannelHandlerContext ctx0) throws Exception {
@@ -109,7 +109,7 @@ public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> 
         if (evt instanceof IdleStateEvent) {
             if (RaftServerData.serverStateEnum == ServerStateEnum.LEADER) {
                 //这里直接发会导致日志乱序,因此要走一致的日志附加逻辑
-                appendEntriesComponent.appendEntriesOne(followerNode);
+                appendEntriesComponent.pushHeartbeat(followerNode);
             }
         } else {
             super.userEventTriggered(ctx, evt);

@@ -29,7 +29,7 @@ import org.top.rpc.entity.AppendEntriesResponse;
  */
 @Slf4j
 public class AppendReqHandler extends BaseMessageHandler<AppendEntriesRequest> {
-    private StateMachineHandler stateMachineHandler = new StateMachineHandlerImpl();
+    private StateMachineHandler stateMachineHandler = StateMachineHandlerImpl.getInstance();
     private SnapshotService snapshotService = new KvStateMachineImpl();
 
     @Override
@@ -37,9 +37,6 @@ public class AppendReqHandler extends BaseMessageHandler<AppendEntriesRequest> {
         //执行代码期间不会进入候选者状态
         RaftServerData.isBusy = true;
         RaftServerData.lock.lock();
-        if (msg.getEntries() != null) {
-            log.info("pre index:{},log:{}", msg.getPreLogIndex(), msg.getEntries().size());
-        }
         try {
             FollowerConvert.convertFollower(msg.getTerm());
             PersistentStateModel stateModel = PersistentStateModel.getModel();

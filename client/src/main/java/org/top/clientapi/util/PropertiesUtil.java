@@ -75,6 +75,11 @@ public class PropertiesUtil {
         return Long.parseLong(prop.get(key));
     }
 
+    public static long getLong(String key, long def) {
+        String val = prop.get(key);
+        return val == null ? def : Long.parseLong(val);
+    }
+
     public static int getInt(String key, int def) {
         String val = prop.get(key);
         return val == null ? def : Integer.parseInt(val);
