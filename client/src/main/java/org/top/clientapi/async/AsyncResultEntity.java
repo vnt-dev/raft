@@ -25,7 +25,7 @@ public class AsyncResultEntity {
         if (asyncResultEntity != null) {
             if (asyncResultEntity.responseCallback != null) {
                 try {
-                    asyncResultEntity.responseCallback.callback(response.getCode(), response.getData());
+                    asyncResultEntity.responseCallback.callback(response.getState(), response.getData());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -35,7 +35,7 @@ public class AsyncResultEntity {
         return false;
     }
 
-    public static AsyncResultEntity getEntity(String option, byte[] key, byte[] value, ResponseCallback responseCallback) {
+    public static AsyncResultEntity getEntity(String option, byte[] key, byte[] value, Long expireTime, ResponseCallback responseCallback) {
         if (key == null) {
             throw new RuntimeException("key不能为空");
         }
@@ -45,6 +45,7 @@ public class AsyncResultEntity {
         submitRequest.setKey(key);
         submitRequest.setId(id);
         submitRequest.setVal(value);
+        submitRequest.setExpireTime(expireTime);
         AsyncResultEntity asyncResultEntity = new AsyncResultEntity();
         asyncResultEntity.id = id;
         asyncResultEntity.request = submitRequest;

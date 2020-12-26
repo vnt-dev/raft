@@ -6,12 +6,9 @@ import org.top.core.RaftServerData;
 import org.top.core.ServerStateEnum;
 import org.top.core.SnapshotExec;
 import org.top.core.log.LogIndexSemaphore;
-import org.top.exception.RaftException;
-import org.top.models.LogEntry;
 import org.top.models.PersistentStateModel;
 import org.top.models.ServerStateModel;
 
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -41,18 +38,10 @@ public class StateMachineHandlerImpl implements StateMachineHandler {
         //所有服务器
         //如果commitIndex > lastApplied，那么就 lastApplied 加一，并把log[lastApplied]应用到状态机中（5.3 节）
         for (long i = serverState.getLastApplied() + 1; i <= serverState.getCommitIndex(); i++) {
-            LogEntry last = model.getLog(i);
-            byte[] rs;
-            boolean success = true;
-            try {
-                rs = stateMachine.execute(last);
-            } catch (RaftException e) {
-                rs = e.getMessage().getBytes(StandardCharsets.UTF_8);
-                success = false;
-            }
+            MachineResult result = stateMachine.execute(model.getLog(i));
             serverState.setLastApplied(i);
             if (RaftServerData.serverStateEnum == ServerStateEnum.LEADER) {
-                LogIndexSemaphore.getInstance().offer(last.getId(), success, rs);
+                LogIndexSemaphore.getInstance().offer(result);
             }
         }
         SnapshotExec.getInstance().apply();
@@ -72,7 +61,7 @@ public class StateMachineHandlerImpl implements StateMachineHandler {
                         lock.unlock();
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    log.error("状态机执行异常", e);
                 }
             }
         }, "stateMachine-thread").start();

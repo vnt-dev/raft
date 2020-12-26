@@ -17,23 +17,7 @@ import org.top.rpc.entity.Node;
 @ToString
 public class SubmitResponse extends BaseMessage {
     public static final long serialVersionUID = -521572154342549866L;
-    /**
-     * 成功
-     */
-    public static final int SUCCESS = 1;
-    /**
-     * 失败
-     */
-    public static final int FAIL = 0;
-    /**
-     * 异常
-     */
-    public static final int ERROR = -1;
-    /**
-     * 转移请求
-     */
-    public static final int TURN = 2;
-    private int code;
+    private OperationState state;
     /**
      * 主节点
      */

@@ -23,10 +23,14 @@ public class CmdExecutor {
     private ApiClient apiClient = ApiClient.getApiClient();
 
     public byte[] cmd(OptionEnum optionEnum, byte[] key, byte[] value) {
+        return this.cmd(optionEnum, key, value, null);
+    }
+
+    public byte[] cmd(OptionEnum optionEnum, byte[] key, byte[] value, Long expireTime) {
         if (apiClient.inEventLoop()) {
             throw new RaftException("不能在异步回调中使用同步命令");
         }
-        ResultEntity resultEntity = getEntity(optionEnum.getCode(), key, value);
+        ResultEntity resultEntity = getEntity(optionEnum.getCode(), key, value, expireTime);
         send(resultEntity, 0);
         return resultEntity.getResponse().getData();
     }
@@ -44,24 +48,25 @@ public class CmdExecutor {
         try {
             if (resultEntity.getSemaphore().tryAcquire(outTime, TimeUnit.MILLISECONDS)) {
                 SubmitResponse response = resultEntity.getResponse();
-                switch (response.getCode()) {
-                    case SubmitResponse.FAIL:
+                switch (response.getState()) {
+                    case FAIL:
                         throw new RuntimeException(new String(response.getData(), StandardCharsets.UTF_8));
-                    case SubmitResponse.ERROR:
+                    case ERROR:
                         apiClient.resetLeader();
                         throw new RuntimeException(new String(response.getData(), StandardCharsets.UTF_8));
-                    case SubmitResponse.SUCCESS:
+                    case SUCCESS:
                         ResultEntity.remove(resultEntity);
                         return;
-                    case SubmitResponse.TURN:
+                    case LEADER_TURN:
                         apiClient.setLeader(response.getLeaderId());
                         send(resultEntity, ++num);
                         return;
                     default:
                         throw new RuntimeException("code错误");
                 }
+            } else {
+                throw new RuntimeException("响应超时");
             }
-            throw new RuntimeException("响应超时");
         } catch (RuntimeException e) {
             ResultEntity.remove(resultEntity);
             throw e;

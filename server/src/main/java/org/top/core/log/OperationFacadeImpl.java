@@ -2,19 +2,24 @@ package org.top.core.log;
 
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
+import org.top.clientapi.entity.OperationState;
 import org.top.clientapi.entity.SubmitRequest;
 import org.top.clientapi.entity.SubmitResponse;
 import org.top.core.AppendLogEntriesExec;
 import org.top.core.ClientNum;
 import org.top.core.RaftServerData;
+import org.top.core.machine.DefaultValue;
 import org.top.core.machine.KvStateMachineImpl;
 import org.top.core.machine.OptionEnum;
 import org.top.core.machine.StateMachine;
 import org.top.exception.RaftException;
 import org.top.rpc.NodeGroup;
+import org.top.rpc.codec.ProtoBufSerializer;
+import org.top.rpc.codec.Serializer;
 import org.top.utils.DataConstants;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * @author lubeilin
@@ -24,6 +29,8 @@ import java.nio.charset.StandardCharsets;
 public class OperationFacadeImpl implements OperationFacade {
     private StateMachine stateMachine = new KvStateMachineImpl();
     private LogIndexSemaphore logIndexSemaphore = LogIndexSemaphore.getInstance();
+    private Serializer<DefaultValue> valueSerializer = new ProtoBufSerializer<>();
+    private static ReentrantLock lock = new ReentrantLock();
     private Channel channel;
 
 
@@ -31,46 +38,102 @@ public class OperationFacadeImpl implements OperationFacade {
 
     }
 
+    private boolean isExpire(long time) {
+        return time > 0 && time < System.currentTimeMillis();
+    }
+
     @Override
     public SubmitResponse submit(SubmitRequest msg) {
+        lock.lock();
         try {
             if (msg.getKey() == null) {
-                return new SubmitResponse(SubmitResponse.ERROR, null, msg.getId(), "key不能为空".getBytes(StandardCharsets.UTF_8));
+                return new SubmitResponse(OperationState.FAIL, null, msg.getId(), "key不能为空".getBytes(StandardCharsets.UTF_8));
             }
             if (RaftServerData.isUp() && ClientNum.getNum() >= NodeGroup.getNodeGroup().majority() - 1) {
                 OptionEnum optionEnum = OptionEnum.getByCode(msg.getOption());
                 if (optionEnum == null) {
-                    return new SubmitResponse(SubmitResponse.FAIL, null, msg.getId(), "操作命令错误".getBytes(StandardCharsets.UTF_8));
+                    return new SubmitResponse(OperationState.FAIL, null, msg.getId(), "操作命令错误".getBytes(StandardCharsets.UTF_8));
                 }
-                switch (optionEnum) {
-                    case GET:
-                        return new SubmitResponse(SubmitResponse.SUCCESS, null, msg.getId(), stateMachine.get(msg.getKey()));
-                    case INCR:
-                    case DECR:
-                        break;
-                    case HAS_KEY:
-                        return new SubmitResponse(SubmitResponse.SUCCESS, null,
-                                msg.getId(), stateMachine.get(msg.getKey()) == null ? DataConstants.FALSE : DataConstants.TRUE);
-                    case SET:
-                    case SET_IF_ABSENT:
-                    case SET_IF_PRESENT:
-                        if (msg.getVal() == null) {
-                            return new SubmitResponse(SubmitResponse.FAIL, null, msg.getId(), "值为空".getBytes(StandardCharsets.UTF_8));
-                        }
-                        break;
-                    default:
+                if (optionEnum != OptionEnum.SET) {
+                    byte[] old = stateMachine.get(msg.getKey());
+                    DefaultValue oldValue = old == null ? null : valueSerializer.deserialize(old, new DefaultValue());
+                    switch (optionEnum) {
+                        case GET:
+                            if (oldValue != null) {
+                                if (isExpire(oldValue.getExpireTime())) {
+                                    //过期了，要走删除key的流程
+                                    msg.setOption(OptionEnum.DEL.getCode());
+                                } else {
+                                    return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), oldValue.getValue());
+                                }
+                            } else {
+                                return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), null);
+                            }
+                            break;
+                        case INCR:
+                        case DECR:
+                            if (oldValue != null && isExpire(oldValue.getExpireTime())) {
+                                //key过期，此时从零操作
+                                msg.setOption((optionEnum == OptionEnum.INCR ? OptionEnum.RESET_INCR : OptionEnum.RESET_DECR).getCode());
+                            }
+                            break;
+                        case HAS_KEY:
+                            if (oldValue != null) {
+                                if (isExpire(oldValue.getExpireTime())) {
+                                    //过期了，要走删除key的流程
+                                    msg.setOption(OptionEnum.DEL.getCode());
+                                } else {
+                                    return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), DataConstants.TRUE);
+                                }
+                            } else {
+                                return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), DataConstants.FALSE);
+                            }
+                            break;
+                        case SET_IF_ABSENT:
+                            if (oldValue != null && !isExpire(oldValue.getExpireTime())) {
+                                //值存在
+                                return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), DataConstants.FALSE);
+                            }
+                            msg.setOption(OptionEnum.SET.getCode());
+                            break;
+                        case SET_IF_PRESENT:
+                            if (oldValue == null) {
+                                //值不存在
+                                return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), DataConstants.FALSE);
+                            }
+                            if (isExpire(oldValue.getExpireTime())) {
+                                //过期了，要走删除key的流程
+                                msg.setOption(OptionEnum.DEL.getCode());
+                            } else {
+                                msg.setOption(OptionEnum.SET.getCode());
+                            }
+                            break;
+                        default:
+                    }
+                }
+                if (optionEnum == OptionEnum.SET || optionEnum == OptionEnum.SET_IF_PRESENT || optionEnum == OptionEnum.SET_IF_ABSENT) {
+                    if (msg.getVal() == null) {
+                        return new SubmitResponse(OperationState.FAIL, null, msg.getId(), "value不能为空".getBytes(StandardCharsets.UTF_8));
+                    }
+                    DefaultValue thisValue = new DefaultValue(msg.getVal(), msg.getExpireTime() == null || msg.getExpireTime() < 0 ? -1 : (System.currentTimeMillis() + msg.getExpireTime()));
+                    msg.setVal(valueSerializer.serialize(thisValue));
+                } else if (optionEnum == OptionEnum.INCR || optionEnum == OptionEnum.DECR) {
+                    DefaultValue thisValue = new DefaultValue(msg.getVal(), msg.getExpireTime() == null || msg.getExpireTime() < 0 ? -1 : (System.currentTimeMillis() + msg.getExpireTime()));
+                    msg.setVal(valueSerializer.serialize(thisValue));
                 }
                 logIndexSemaphore.addListener(msg.getId(), channel);
                 AppendLogEntriesExec.getInstance().signal(msg);
                 return null;
             } else {
-                return new SubmitResponse(SubmitResponse.TURN, RaftServerData.leaderId, msg.getId(), null);
+                return new SubmitResponse(OperationState.LEADER_TURN, RaftServerData.leaderId, msg.getId(), null);
             }
         } catch (RaftException e) {
-            return new SubmitResponse(SubmitResponse.FAIL, null, msg.getId(), e.getMessage().getBytes(StandardCharsets.UTF_8));
+            return new SubmitResponse(OperationState.FAIL, null, msg.getId(), e.getMessage().getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             log.info(e.getMessage(), e);
-            return new SubmitResponse(SubmitResponse.ERROR, null, msg.getId(), e.getMessage().getBytes(StandardCharsets.UTF_8));
+            return new SubmitResponse(OperationState.ERROR, null, msg.getId(), e.getMessage().getBytes(StandardCharsets.UTF_8));
+        } finally {
+            lock.unlock();
         }
     }
 

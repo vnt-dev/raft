@@ -41,11 +41,30 @@ public interface AsyncValueOperations<V> {
     /**
      * 修改
      *
+     * @param key  key
+     * @param v    value
+     * @param time 有效时间
+     */
+    void set(String key, V v, Long time);
+
+    /**
+     * 修改
+     *
      * @param key            key
      * @param v              value
      * @param resultCallback 结果回调
      */
     void set(String key, V v, ResultCallback<Boolean> resultCallback);
+
+    /**
+     * 修改
+     *
+     * @param key            key
+     * @param v              value
+     * @param time           有效时间
+     * @param resultCallback 结果回调
+     */
+    void set(String key, V v, Long time, ResultCallback<Boolean> resultCallback);
 
     /**
      * 自增1
@@ -57,10 +76,27 @@ public interface AsyncValueOperations<V> {
     /**
      * 自增1
      *
+     * @param key  key
+     * @param time 有效时间
+     */
+    void incr(String key, Long time);
+
+    /**
+     * 自增1
+     *
      * @param key            key
      * @param resultCallback 结果回调
      */
     void incr(String key, ResultCallback<Long> resultCallback);
+
+    /**
+     * 自增1
+     *
+     * @param key            key
+     * @param time           有效时间
+     * @param resultCallback 结果回调
+     */
+    void incr(String key, Long time, ResultCallback<Long> resultCallback);
 
     /**
      * 自增v
@@ -72,11 +108,29 @@ public interface AsyncValueOperations<V> {
     void incrBy(String key, long v, ResultCallback<Long> resultCallback);
 
     /**
+     * 自增v
+     *
+     * @param key            key
+     * @param v              value
+     * @param time           有效时间
+     * @param resultCallback 结果回调
+     */
+    void incrBy(String key, long v, Long time, ResultCallback<Long> resultCallback);
+
+    /**
      * 自减1
      *
      * @param key key
      */
     void decr(String key);
+
+    /**
+     * 自减1
+     *
+     * @param key  key
+     * @param time 有效时间
+     */
+    void decr(String key, Long time);
 
     /**
      * 自减1
@@ -87,6 +141,15 @@ public interface AsyncValueOperations<V> {
     void decr(String key, ResultCallback<Long> resultCallback);
 
     /**
+     * 自减1
+     *
+     * @param key            key
+     * @param time           有效时间
+     * @param resultCallback 结果回调
+     */
+    void decr(String key, Long time, ResultCallback<Long> resultCallback);
+
+    /**
      * 自减v
      *
      * @param key            key
@@ -94,6 +157,16 @@ public interface AsyncValueOperations<V> {
      * @param resultCallback 结果回调
      */
     void decrBy(String key, long v, ResultCallback<Long> resultCallback);
+
+    /**
+     * 自减v
+     *
+     * @param key            key
+     * @param v              value
+     * @param time           有效时间
+     * @param resultCallback 结果回调
+     */
+    void decrBy(String key, long v, Long time, ResultCallback<Long> resultCallback);
 
     /**
      * 不存在时修改
@@ -106,11 +179,29 @@ public interface AsyncValueOperations<V> {
     /**
      * 不存在时修改
      *
+     * @param key  key
+     * @param v    value
+     * @param time 有效时间
+     */
+    void setIfAbsent(String key, V v, Long time);
+
+    /**
+     * 不存在时修改
+     *
      * @param key            key
      * @param v              value
      * @param resultCallback 结果回调
      */
     void setIfAbsent(String key, V v, ResultCallback<Boolean> resultCallback);
+
+    /**
+     * 不存在时修改
+     * @param key key
+     * @param v value
+     * @param time 有效时间
+     * @param resultCallback 结果回调
+     */
+    void setIfAbsent(String key, V v, Long time, ResultCallback<Boolean> resultCallback);
 
     /**
      * 存在则修改
@@ -122,12 +213,29 @@ public interface AsyncValueOperations<V> {
 
     /**
      * 存在则修改
+     * @param key key
+     * @param v value
+     * @param time 有效时间
+     */
+    void setIfPresent(String key, V v, Long time);
+
+    /**
+     * 存在则修改
      *
      * @param key            key
      * @param v              value
      * @param resultCallback 结果回调
      */
     void setIfPresent(String key, V v, ResultCallback<Boolean> resultCallback);
+
+    /**
+     * 存在则修改
+     * @param key key
+     * @param v value
+     * @param time 有效时间
+     * @param resultCallback 结果回调
+     */
+    void setIfPresent(String key, V v, Long time, ResultCallback<Boolean> resultCallback);
 
     /**
      * 是否存在

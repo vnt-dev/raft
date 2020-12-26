@@ -15,15 +15,19 @@ public class Client {
         PropertiesUtil.setValue("nodes", "127.0.0.1:8040,127.0.0.1:8041,127.0.0.1:8042,127.0.0.1:8043");
         PropertiesUtil.setValue("outTime", "5000");
         StringKvOperations operations = new StringKvOperations();
+        for (int i=0;i<1000;i++){
+            System.out.println(operations.opsForValue().setIfAbsent("test"+i,"xxx",10L));
+        }
+        for (int i=0;i<1000;i++){
+            System.out.println(operations.opsForValue().hasKey("test"+i));
+        }
+//        operations.opsForValue().incrBy("parallelStream",1);
+//        System.out.println(operations.opsForValue().get("parallelStream"));
+//        operations.opsForValue().decrBy("parallelStream",1);
+//        System.out.println(operations.opsForValue().get("parallelStream"));
 //        operations.opsForValue().delete("parallelStream");
-//        operations.opsForValue().delete("stream");
-//        operations.opsForValue().delete("async");
-        System.out.println(operations.opsForValue().get("parallelStream"));
-        System.out.println(operations.opsForValue().get("stream"));
-        System.out.println(operations.opsForValue().get("async"));
-        operations.opsForValueAsync().get("async",e->{
-            System.out.println(operations.opsForValue().get("async"));
-        });
+//        System.out.println(operations.opsForValue().get("parallelStream"));
+
 //        operations.opsForValue().setIfPresent("parallelStream", "0");
 //        operations.opsForValue().setIfPresent("stream", "0");
 //        operations.opsForValue().setIfPresent("async", "0");

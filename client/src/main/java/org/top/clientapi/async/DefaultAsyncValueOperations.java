@@ -3,6 +3,9 @@ package org.top.clientapi.async;
 import org.top.clientapi.OptionEnum;
 import org.top.clientapi.codec.DefaultValueSerializer;
 import org.top.clientapi.codec.ValueSerializer;
+import org.top.clientapi.util.DataConstants;
+
+import java.util.Arrays;
 
 /**
  * @author lubeilin
@@ -54,8 +57,18 @@ public class DefaultAsyncValueOperations<V> implements AsyncValueOperations<V> {
     }
 
     @Override
+    public void set(String key, V v, Long time) {
+        asyncCmdExecutor.cmd(OptionEnum.SET, defaultSer.serialize(key), valueSerializer.serialize(v), time, null);
+    }
+
+    @Override
     public void set(String key, V v, ResultCallback<Boolean> resultCallback) {
-        asyncCmdExecutor.cmd(OptionEnum.SET, defaultSer.serialize(key), valueSerializer.serialize(v), new DefaultResponseCallBack<Boolean>(resultCallback) {
+        this.set(key, v, null, resultCallback);
+    }
+
+    @Override
+    public void set(String key, V v, Long time, ResultCallback<Boolean> resultCallback) {
+        asyncCmdExecutor.cmd(OptionEnum.SET, defaultSer.serialize(key), valueSerializer.serialize(v), time, new DefaultResponseCallBack<Boolean>(resultCallback) {
             @Override
             public void success(byte[] bytes) {
                 resultCallback.success(true);
@@ -65,12 +78,22 @@ public class DefaultAsyncValueOperations<V> implements AsyncValueOperations<V> {
 
     @Override
     public void incr(String key) {
-        asyncCmdExecutor.cmd(OptionEnum.INCR, defaultSer.serialize(key), null, null);
+        this.incr(key, -1L);
+    }
+
+    @Override
+    public void incr(String key, Long time) {
+        asyncCmdExecutor.cmd(OptionEnum.INCR, defaultSer.serialize(key), null, time, null);
     }
 
     @Override
     public void incr(String key, ResultCallback<Long> resultCallback) {
-        asyncCmdExecutor.cmd(OptionEnum.INCR, defaultSer.serialize(key), null, new DefaultResponseCallBack<Long>(resultCallback) {
+        this.incr(key, -1L, resultCallback);
+    }
+
+    @Override
+    public void incr(String key, Long time, ResultCallback<Long> resultCallback) {
+        asyncCmdExecutor.cmd(OptionEnum.INCR, defaultSer.serialize(key), null, time, new DefaultResponseCallBack<Long>(resultCallback) {
             @Override
             public void success(byte[] bytes) {
                 String str = defaultSer.deserialize(bytes, String.class);
@@ -81,6 +104,11 @@ public class DefaultAsyncValueOperations<V> implements AsyncValueOperations<V> {
 
     @Override
     public void incrBy(String key, long v, ResultCallback<Long> resultCallback) {
+        this.incrBy(key, v, -1L, resultCallback);
+    }
+
+    @Override
+    public void incrBy(String key, long v, Long time, ResultCallback<Long> resultCallback) {
         asyncCmdExecutor.cmd(OptionEnum.INCR, defaultSer.serialize(key), defaultSer.serialize(Long.toString(v)), new DefaultResponseCallBack<Long>(resultCallback) {
             @Override
             public void success(byte[] bytes) {
@@ -92,7 +120,12 @@ public class DefaultAsyncValueOperations<V> implements AsyncValueOperations<V> {
 
     @Override
     public void decr(String key) {
-        asyncCmdExecutor.cmd(OptionEnum.DECR, defaultSer.serialize(key), null, null);
+        this.decr(key, -1L);
+    }
+
+    @Override
+    public void decr(String key, Long time) {
+        asyncCmdExecutor.cmd(OptionEnum.DECR, defaultSer.serialize(key), null, time, null);
     }
 
     @Override
@@ -107,6 +140,11 @@ public class DefaultAsyncValueOperations<V> implements AsyncValueOperations<V> {
     }
 
     @Override
+    public void decr(String key, Long time, ResultCallback<Long> resultCallback) {
+
+    }
+
+    @Override
     public void decrBy(String key, long v, ResultCallback<Long> resultCallback) {
         asyncCmdExecutor.cmd(OptionEnum.DECR, defaultSer.serialize(key), defaultSer.serialize(Long.toString(v)), new DefaultResponseCallBack<Long>(resultCallback) {
             @Override
@@ -118,8 +156,18 @@ public class DefaultAsyncValueOperations<V> implements AsyncValueOperations<V> {
     }
 
     @Override
+    public void decrBy(String key, long v, Long time, ResultCallback<Long> resultCallback) {
+
+    }
+
+    @Override
     public void setIfAbsent(String key, V v) {
         asyncCmdExecutor.cmd(OptionEnum.SET_IF_ABSENT, defaultSer.serialize(key), valueSerializer.serialize(v), null);
+    }
+
+    @Override
+    public void setIfAbsent(String key, V v, Long time) {
+
     }
 
     @Override
@@ -127,9 +175,14 @@ public class DefaultAsyncValueOperations<V> implements AsyncValueOperations<V> {
         asyncCmdExecutor.cmd(OptionEnum.SET_IF_ABSENT, defaultSer.serialize(key), valueSerializer.serialize(v), new DefaultResponseCallBack<Boolean>(resultCallback) {
             @Override
             public void success(byte[] bytes) {
-                resultCallback.success(true);
+                resultCallback.success(Arrays.equals(bytes, DataConstants.TRUE));
             }
         });
+    }
+
+    @Override
+    public void setIfAbsent(String key, V v, Long time, ResultCallback<Boolean> resultCallback) {
+
     }
 
     @Override
@@ -138,13 +191,23 @@ public class DefaultAsyncValueOperations<V> implements AsyncValueOperations<V> {
     }
 
     @Override
+    public void setIfPresent(String key, V v, Long time) {
+
+    }
+
+    @Override
     public void setIfPresent(String key, V v, ResultCallback<Boolean> resultCallback) {
         asyncCmdExecutor.cmd(OptionEnum.SET_IF_PRESENT, defaultSer.serialize(key), valueSerializer.serialize(v), new DefaultResponseCallBack<Boolean>(resultCallback) {
             @Override
             public void success(byte[] bytes) {
-                resultCallback.success(true);
+                resultCallback.success(Arrays.equals(bytes, DataConstants.TRUE));
             }
         });
+    }
+
+    @Override
+    public void setIfPresent(String key, V v, Long time, ResultCallback<Boolean> resultCallback) {
+
     }
 
     @Override
@@ -152,7 +215,7 @@ public class DefaultAsyncValueOperations<V> implements AsyncValueOperations<V> {
         asyncCmdExecutor.cmd(OptionEnum.HAS_KEY, defaultSer.serialize(key), null, new DefaultResponseCallBack<Boolean>(resultCallback) {
             @Override
             public void success(byte[] bytes) {
-                resultCallback.success(true);
+                resultCallback.success(Arrays.equals(bytes, DataConstants.TRUE));
             }
         });
     }

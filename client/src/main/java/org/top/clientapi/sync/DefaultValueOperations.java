@@ -40,22 +40,37 @@ public class DefaultValueOperations<V> implements ValueOperations<V> {
 
     @Override
     public void set(String key, V v) {
-        cmdExecutor.cmd(OptionEnum.SET, defaultSer.serialize(key), valueSerializer.serialize(v));
+        this.set(key, v, null);
+    }
+
+    @Override
+    public void set(String key, V v, Long milliseconds) {
+        cmdExecutor.cmd(OptionEnum.SET, defaultSer.serialize(key), valueSerializer.serialize(v), milliseconds);
     }
 
     @Override
     public long incr(String key) {
-        return calculation(OptionEnum.INCR, key, null);
+        return calculation(OptionEnum.INCR, key, null, null);
+    }
+
+    @Override
+    public long incr(String key, Long milliseconds) {
+        return calculation(OptionEnum.INCR, key, null, milliseconds);
     }
 
     @Override
     public long incrBy(String key, long val) {
-        return calculation(OptionEnum.INCR, key, val);
+        return calculation(OptionEnum.INCR, key, val, null);
     }
 
-    private long calculation(OptionEnum optionEnum, String key, Long val) {
+    @Override
+    public long incrBy(String key, long val, Long milliseconds) {
+        return calculation(OptionEnum.INCR, key, val, milliseconds);
+    }
+
+    private long calculation(OptionEnum optionEnum, String key, Long val, Long expire) {
         byte[] value = val == null ? null : defaultSer.serialize(Long.toString(val));
-        byte[] data = cmdExecutor.cmd(optionEnum, defaultSer.serialize(key), value);
+        byte[] data = cmdExecutor.cmd(optionEnum, defaultSer.serialize(key), value, expire);
         try {
             String str = defaultSer.deserialize(data, String.class);
             return Long.parseLong(str);
@@ -67,23 +82,43 @@ public class DefaultValueOperations<V> implements ValueOperations<V> {
 
     @Override
     public long decr(String key) {
-        return calculation(OptionEnum.DECR, key, null);
+        return calculation(OptionEnum.DECR, key, null, null);
+    }
+
+    @Override
+    public long decr(String key, Long milliseconds) {
+        return calculation(OptionEnum.DECR, key, null, milliseconds);
     }
 
     @Override
     public long decrBy(String key, long val) {
-        return calculation(OptionEnum.DECR, key, val);
+        return calculation(OptionEnum.DECR, key, val, null);
+    }
+
+    @Override
+    public long decrBy(String key, long val, Long milliseconds) {
+        return calculation(OptionEnum.DECR, key, val, milliseconds);
     }
 
     @Override
     public boolean setIfAbsent(String key, V v) {
-        byte[] bytes = cmdExecutor.cmd(OptionEnum.SET_IF_ABSENT, defaultSer.serialize(key), valueSerializer.serialize(v));
+        return this.setIfAbsent(key, v, null);
+    }
+
+    @Override
+    public boolean setIfAbsent(String key, V v, Long milliseconds) {
+        byte[] bytes = cmdExecutor.cmd(OptionEnum.SET_IF_ABSENT, defaultSer.serialize(key), valueSerializer.serialize(v), milliseconds);
         return Arrays.equals(bytes, DataConstants.TRUE);
     }
 
     @Override
     public boolean setIfPresent(String key, V v) {
-        byte[] bytes = cmdExecutor.cmd(OptionEnum.SET_IF_PRESENT, defaultSer.serialize(key), valueSerializer.serialize(v));
+        return this.setIfPresent(key, v, null);
+    }
+
+    @Override
+    public boolean setIfPresent(String key, V v, Long milliseconds) {
+        byte[] bytes = cmdExecutor.cmd(OptionEnum.SET_IF_PRESENT, defaultSer.serialize(key), valueSerializer.serialize(v), milliseconds);
         return Arrays.equals(bytes, DataConstants.TRUE);
     }
 

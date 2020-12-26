@@ -20,7 +20,7 @@ public interface StateMachine {
      * @return 数据
      * @throws Exception 异常
      */
-    byte[] execute(LogEntry logEntryModel) throws Exception;
+    MachineResult execute(LogEntry logEntryModel) throws Exception;
 
     /**
      * 存储快照数据

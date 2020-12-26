@@ -36,13 +36,14 @@ public class ResultEntity {
         msgMap.remove(entity.id);
     }
 
-    public static ResultEntity getEntity(String option, byte[] key, byte[] value) {
+    public static ResultEntity getEntity(String option, byte[] key, byte[] value, Long expireTime) {
         String id = UUID.randomUUID().toString();
         SubmitRequest submitRequest = new SubmitRequest();
         submitRequest.setOption(option);
         submitRequest.setKey(key);
         submitRequest.setId(id);
         submitRequest.setVal(value);
+        submitRequest.setExpireTime(expireTime);
         ResultEntity resultEntity = new ResultEntity();
         resultEntity.id = id;
         resultEntity.request = submitRequest;

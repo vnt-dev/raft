@@ -1,5 +1,7 @@
 package org.top.clientapi.async;
 
+import org.top.clientapi.entity.OperationState;
+
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -15,9 +17,9 @@ public abstract class DefaultResponseCallBack<V> implements ResponseCallback {
     }
 
     @Override
-    public void callback(int state, byte[] bytes) {
-        if (state != 1) {
-            if(bytes==null){
+    public void callback(OperationState state, byte[] bytes) {
+        if (state != OperationState.SUCCESS) {
+            if (bytes == null) {
                 System.out.println(state);
                 return;
             }

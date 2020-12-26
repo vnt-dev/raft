@@ -17,6 +17,7 @@ import org.top.rpc.codec.BaseMessage;
 public class SubmitRequest extends BaseMessage {
     private String id;
     private String option;
+    private Long expireTime;
     private byte[] key;
     private byte[] val;
 }

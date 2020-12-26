@@ -3,6 +3,7 @@ package org.top.core.log;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.top.clientapi.entity.SubmitResponse;
+import org.top.core.machine.MachineResult;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,7 +18,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 @Slf4j
 public class LogIndexSemaphore {
     private static LogIndexSemaphore logIndexSemaphore = new LogIndexSemaphore();
-    private LinkedBlockingQueue<IndexData> blockingQueue = new LinkedBlockingQueue<>();
+    private LinkedBlockingQueue<MachineResult> blockingQueue = new LinkedBlockingQueue<>();
     private Map<String, Channel> map = new ConcurrentHashMap<>();
 
     private LogIndexSemaphore() {
@@ -42,14 +43,10 @@ public class LogIndexSemaphore {
             //noinspection InfiniteLoopStatement
             for (; ; ) {
                 try {
-                    IndexData indexData = blockingQueue.take();
-                    Channel channel = map.remove(indexData.id);
+                    MachineResult indexData = blockingQueue.take();
+                    Channel channel = map.remove(indexData.getId());
                     if (channel != null) {
-                        if (indexData.success) {
-                            channel.writeAndFlush(new SubmitResponse(SubmitResponse.SUCCESS, null, indexData.id, indexData.data));
-                        } else {
-                            channel.writeAndFlush(new SubmitResponse(SubmitResponse.FAIL, null, indexData.id, indexData.data));
-                        }
+                        channel.writeAndFlush(new SubmitResponse(indexData.getState(), null, indexData.getId(), indexData.getData()));
                     }
                 } catch (InterruptedException e) {
                     log.error(e.getMessage(), e);
@@ -58,20 +55,7 @@ public class LogIndexSemaphore {
         }, "operation-facade-thread").start();
     }
 
-    public void offer(String id, boolean success, byte[] data) {
-        IndexData indexData = new IndexData(id, success, data);
-        blockingQueue.offer(indexData);
-    }
-
-    static class IndexData {
-        private volatile String id;
-        private volatile boolean success;
-        private volatile byte[] data;
-
-        public IndexData(String id, boolean success, byte[] data) {
-            this.id = id;
-            this.success = success;
-            this.data = data;
-        }
+    public void offer(MachineResult result) {
+        blockingQueue.offer(result);
     }
 }

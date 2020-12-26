@@ -16,7 +16,14 @@ import org.top.rpc.codec.BaseMessage;
 @ToString
 public class SubmitRequest extends BaseMessage {
     private String id;
+    /**
+     * 操作
+     */
     private String option;
+    /**
+     * 过期时间
+     */
+    private Long expireTime;
     private byte[] key;
     private byte[] val;
 }

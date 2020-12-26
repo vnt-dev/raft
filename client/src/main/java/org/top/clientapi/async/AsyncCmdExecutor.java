@@ -11,9 +11,12 @@ import org.top.rpc.ApiClient;
 public class AsyncCmdExecutor {
     private ApiClient apiClient = ApiClient.getApiClient();
 
-
     public void cmd(OptionEnum optionEnum, byte[] key, byte[] value, ResponseCallback callback) {
-        AsyncResultEntity resultEntity = AsyncResultEntity.getEntity(optionEnum.getCode(), key, value, callback);
+        this.cmd(optionEnum, key, value, null, callback);
+    }
+
+    public void cmd(OptionEnum optionEnum, byte[] key, byte[] value, Long expireTime, ResponseCallback callback) {
+        AsyncResultEntity resultEntity = AsyncResultEntity.getEntity(optionEnum.getCode(), key, value, expireTime, callback);
         apiClient.send(resultEntity.getRequest());
     }
 }

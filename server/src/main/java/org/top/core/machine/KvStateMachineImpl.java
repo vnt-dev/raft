@@ -2,6 +2,7 @@ package org.top.core.machine;
 
 import lombok.extern.slf4j.Slf4j;
 import org.rocksdb.*;
+import org.top.clientapi.entity.OperationState;
 import org.top.core.RaftServerData;
 import org.top.core.machine.snapshot.KvEntity;
 import org.top.core.machine.snapshot.SnapshotLoad;
@@ -34,7 +35,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     private final static byte[] SERIAL_NUMBER_PRE = "serial_num".getBytes(StandardCharsets.UTF_8);
     private final static byte[] SERIAL_NUMBER_VAL = "val".getBytes(StandardCharsets.UTF_8);
     private static ProtoBufSerializer<String> serializer = new ProtoBufSerializer<>();
-
+    private static ProtoBufSerializer<DefaultValue> cmdValueSerializer = new ProtoBufSerializer<>();
     private static TransactionDB rocksDB;
 
     static {
@@ -56,20 +57,22 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     }
 
     @Override
-    public byte[] execute(LogEntry logEntry) throws Exception {
+    public MachineResult execute(LogEntry logEntry) throws Exception {
         OptionEnum optionEnum = OptionEnum.getByCode(logEntry.getOption());
         if (optionEnum == OptionEnum.UP) {
             if (logEntry.getTerm() == PersistentStateModel.getModel().getCurrentTerm()) {
                 RaftServerData.leaderUp();
             }
-            return null;
+            return new MachineResult(logEntry.getId(), OperationState.SUCCESS, null);
         }
         if (optionEnum == null) {
-            throw new RaftException("不支持的类型" + logEntry.getOption());
+            return new MachineResult(logEntry.getId(), OperationState.FAIL, ("不支持的类型" + logEntry.getOption()).getBytes(StandardCharsets.UTF_8));
         }
+        MachineResult result = new MachineResult();
+        result.setId(logEntry.getId());
+        result.setState(OperationState.SUCCESS);
         Transaction transaction = rocksDB.beginTransaction(new WriteOptions());
         try {
-            byte[] bytes = null;
             if (isExec(logEntry.getId().getBytes(StandardCharsets.UTF_8), transaction)) {
                 log.info("命令已执行 :" + logEntry.getIndex());
                 throw new RaftException("命令已执行");
@@ -77,45 +80,53 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
             switch (optionEnum) {
                 case SET:
                     set(logEntry.getKey(), logEntry.getVal(), transaction);
+                    result.setData(DataConstants.TRUE);
                     break;
                 case DEL:
                     delete(logEntry.getKey(), transaction);
                     break;
+                case RESET_INCR:
+                case RESET_DECR:
                 case INCR:
-                case DECR:
-                    bytes = calculation(optionEnum, get(logEntry.getKey(), transaction), logEntry.getVal());
-                    set(logEntry.getKey(), bytes, transaction);
-                    break;
-                case SET_IF_ABSENT:
-                    if (get(logEntry.getKey(), transaction) == null) {
-                        //不存在
-                        set(logEntry.getKey(), logEntry.getVal(), transaction);
-                        bytes = DataConstants.TRUE;
-                    } else {
-                        bytes = DataConstants.FALSE;
-                    }
-                    break;
-                case SET_IF_PRESENT:
-                    if (get(logEntry.getKey(), transaction) != null) {
-                        //存在
-                        set(logEntry.getKey(), logEntry.getVal(), transaction);
-                        bytes = DataConstants.TRUE;
-                    } else {
-                        bytes = DataConstants.FALSE;
-                    }
-                    break;
+                case DECR: {
+                    byte[] old = optionEnum == OptionEnum.RESET_INCR || optionEnum == OptionEnum.RESET_DECR ? null : get(logEntry.getKey(), transaction);
+                    DefaultValue value = calculation(optionEnum, old, logEntry.getVal());
+                    result.setData(value.getValue());
+                    set(logEntry.getKey(), cmdValueSerializer.serialize(value), transaction);
+                }
+                break;
                 default:
-                    throw new RaftException("不支持的类型" + optionEnum);
             }
             transaction.commit();
-            return bytes;
+            return result;
+        } catch (RaftException e) {
+            transaction.rollback();
+            result.setState(OperationState.FAIL);
+            result.setData(e.getMessage().getBytes(StandardCharsets.UTF_8));
+            return result;
         } catch (Exception e) {
             transaction.rollback();
             throw e;
         }
     }
 
-    private byte[] calculation(OptionEnum optionEnum, byte[] old, byte[] val) {
+    private DefaultValue calculation(OptionEnum optionEnum, byte[] oldSrc, byte[] change) {
+        DefaultValue oldValue;
+        byte[] old;
+        byte[] val = null;
+        if (oldSrc != null) {
+            oldValue = cmdValueSerializer.deserialize(oldSrc, new DefaultValue());
+        } else {
+            oldValue = new DefaultValue(null, -1);
+        }
+        old = oldValue.getValue();
+        //改变的值
+        DefaultValue cal = change == null ? null : cmdValueSerializer.deserialize(change, new DefaultValue());
+        if (cal != null) {
+            val = cal.getValue();
+            oldValue.setExpireTime(cal.getExpireTime());
+        }
+
         byte[] bytes;
         long temp;
         if (val != null) {
@@ -142,7 +153,8 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
                 bytes = serializer.serialize(Long.toString(calculation(optionEnum, 0, temp)));
             }
         }
-        return bytes;
+        oldValue.setValue(bytes);
+        return oldValue;
     }
 
     private long calculation(OptionEnum optionEnum, long old, long val) {
@@ -237,25 +249,16 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
             case DEL:
                 snapshotLoad.del(addPrefix(STRING, logEntry.getKey()), logEntry.getTerm(), logEntry.getIndex());
                 break;
+            case RESET_INCR:
+            case RESET_DECR:
             case INCR:
             case DECR:
                 try {
-                    byte[] bytes = calculation(optionEnum, snapshotLoad.get(logEntry.getKey()), logEntry.getVal());
-                    snapshotLoad.set(addPrefix(STRING, logEntry.getKey()), bytes, logEntry.getTerm(), logEntry.getIndex());
+                    byte[] old = optionEnum == OptionEnum.RESET_INCR || optionEnum == OptionEnum.RESET_DECR ? null : snapshotLoad.get(logEntry.getKey());
+                    DefaultValue value = calculation(optionEnum, old, logEntry.getVal());
+                    snapshotLoad.set(addPrefix(STRING, logEntry.getKey()), cmdValueSerializer.serialize(value), logEntry.getTerm(), logEntry.getIndex());
                 } catch (RaftException ignored) {
 
-                }
-                break;
-            case SET_IF_ABSENT:
-                if (snapshotLoad.get(logEntry.getKey()) == null) {
-                    //不存在则修改
-                    snapshotLoad.set(addPrefix(STRING, logEntry.getKey()), logEntry.getVal(), logEntry.getTerm(), logEntry.getIndex());
-                }
-                break;
-            case SET_IF_PRESENT:
-                if (snapshotLoad.get(logEntry.getKey()) != null) {
-                    //存在
-                    snapshotLoad.set(addPrefix(STRING, logEntry.getKey()), logEntry.getVal(), logEntry.getTerm(), logEntry.getIndex());
                 }
                 break;
             default:
