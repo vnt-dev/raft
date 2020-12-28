@@ -68,6 +68,18 @@ public class SnapshotLoad {
         }
     }
 
+    public void updateTermAndIndex(int term, long index) throws Exception {
+        Transaction transaction = snapshotDB.beginTransaction(new WriteOptions());
+        try {
+            transaction.put(CURRENT_TERM_KEY, toBytes(term));
+            transaction.put(LAST_INDEX_KEY, toBytes(index));
+            transaction.commit();
+        } catch (Exception e) {
+            transaction.rollback();
+            throw e;
+        }
+    }
+
     public byte[] get(byte[] key) throws RocksDBException {
         return snapshotDB.get(key);
     }

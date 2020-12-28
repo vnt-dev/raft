@@ -22,6 +22,15 @@ public interface ValueOperations<V> {
     V get(String key);
 
     /**
+     * 设置过期时间
+     *
+     * @param key     key
+     * @param timeout 过期时间
+     * @return 是否设置成功，key不存在时返回false
+     */
+    boolean expire(String key, long timeout);
+
+    /**
      * 修改
      *
      * @param key key

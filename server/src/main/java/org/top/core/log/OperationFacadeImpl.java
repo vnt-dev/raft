@@ -8,10 +8,7 @@ import org.top.clientapi.entity.SubmitResponse;
 import org.top.core.AppendLogEntriesExec;
 import org.top.core.ClientNum;
 import org.top.core.RaftServerData;
-import org.top.core.machine.DefaultValue;
-import org.top.core.machine.KvStateMachineImpl;
-import org.top.core.machine.OptionEnum;
-import org.top.core.machine.StateMachine;
+import org.top.core.machine.*;
 import org.top.exception.RaftException;
 import org.top.rpc.NodeGroup;
 import org.top.rpc.codec.ProtoBufSerializer;
@@ -30,6 +27,7 @@ public class OperationFacadeImpl implements OperationFacade {
     private StateMachine stateMachine = new KvStateMachineImpl();
     private LogIndexSemaphore logIndexSemaphore = LogIndexSemaphore.getInstance();
     private Serializer<DefaultValue> valueSerializer = new ProtoBufSerializer<>();
+    private Serializer<CompareValue> compareValueSerializer = new ProtoBufSerializer<>();
     private static ReentrantLock lock = new ReentrantLock();
     private Channel channel;
 
@@ -39,7 +37,7 @@ public class OperationFacadeImpl implements OperationFacade {
     }
 
     private boolean isExpire(long time) {
-        return time > 0 && time < System.currentTimeMillis();
+        return time > 0 && time <= System.currentTimeMillis();
     }
 
     @Override
@@ -62,7 +60,9 @@ public class OperationFacadeImpl implements OperationFacade {
                             if (oldValue != null) {
                                 if (isExpire(oldValue.getExpireTime())) {
                                     //过期了，要走删除key的流程
-                                    msg.setOption(OptionEnum.DEL.getCode());
+                                    msg.setOption(OptionEnum.COMPARE_AND_DEL.getCode());
+                                    optionEnum = OptionEnum.COMPARE_AND_DEL;
+                                    msg.setVal(old);
                                 } else {
                                     return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), oldValue.getValue());
                                 }
@@ -70,18 +70,39 @@ public class OperationFacadeImpl implements OperationFacade {
                                 return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), null);
                             }
                             break;
+                        case DEL:
+                            if (oldValue == null) {
+                                return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), null);
+                            }
+                            break;
+                        case EXPIRE:
+                            if (oldValue == null) {
+                                return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), DataConstants.FALSE);
+                            } else if (isExpire(oldValue.getExpireTime())) {
+                                //过期了，要走删除key的流程
+                                msg.setOption(OptionEnum.COMPARE_AND_DEL.getCode());
+                                optionEnum = OptionEnum.COMPARE_AND_DEL;
+                                msg.setVal(old);
+                            }
+                            break;
                         case INCR:
                         case DECR:
                             if (oldValue != null && isExpire(oldValue.getExpireTime())) {
-                                //key过期，此时从零操作
-                                msg.setOption((optionEnum == OptionEnum.INCR ? OptionEnum.RESET_INCR : OptionEnum.RESET_DECR).getCode());
+                                //key过期，执行状态机如果还是旧值那就从零开始操作
+                                optionEnum = optionEnum == OptionEnum.INCR ? OptionEnum.RESET_INCR : OptionEnum.RESET_DECR;
+                                msg.setOption(optionEnum.getCode());
+                                DefaultValue thisValue = new DefaultValue(msg.getVal(), msg.getExpireTime() == null || msg.getExpireTime() < 0 ? -1 : (System.currentTimeMillis() + msg.getExpireTime()));
+                                CompareValue compareValue = new CompareValue(old, valueSerializer.serialize(thisValue));
+                                msg.setVal(compareValueSerializer.serialize(compareValue));
                             }
                             break;
                         case HAS_KEY:
                             if (oldValue != null) {
                                 if (isExpire(oldValue.getExpireTime())) {
                                     //过期了，要走删除key的流程
-                                    msg.setOption(OptionEnum.DEL.getCode());
+                                    msg.setOption(OptionEnum.COMPARE_AND_DEL.getCode());
+                                    optionEnum = OptionEnum.COMPARE_AND_DEL;
+                                    msg.setVal(old);
                                 } else {
                                     return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), DataConstants.TRUE);
                                 }
@@ -93,8 +114,14 @@ public class OperationFacadeImpl implements OperationFacade {
                             if (oldValue != null && !isExpire(oldValue.getExpireTime())) {
                                 //值存在
                                 return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), DataConstants.FALSE);
+                            } else {
+                                if (msg.getVal() == null) {
+                                    return new SubmitResponse(OperationState.FAIL, null, msg.getId(), "value不能为空".getBytes(StandardCharsets.UTF_8));
+                                }
+                                DefaultValue thisValue = new DefaultValue(msg.getVal(), msg.getExpireTime() == null || msg.getExpireTime() < 0 ? -1 : (System.currentTimeMillis() + msg.getExpireTime()));
+                                CompareValue compareValue = new CompareValue(old, valueSerializer.serialize(thisValue));
+                                msg.setVal(compareValueSerializer.serialize(compareValue));
                             }
-                            msg.setOption(OptionEnum.SET.getCode());
                             break;
                         case SET_IF_PRESENT:
                             if (oldValue == null) {
@@ -103,21 +130,21 @@ public class OperationFacadeImpl implements OperationFacade {
                             }
                             if (isExpire(oldValue.getExpireTime())) {
                                 //过期了，要走删除key的流程
-                                msg.setOption(OptionEnum.DEL.getCode());
-                            } else {
-                                msg.setOption(OptionEnum.SET.getCode());
+                                msg.setOption(OptionEnum.COMPARE_AND_DEL.getCode());
+                                optionEnum = OptionEnum.COMPARE_AND_DEL;
+                                msg.setVal(old);
                             }
                             break;
                         default:
                     }
                 }
-                if (optionEnum == OptionEnum.SET || optionEnum == OptionEnum.SET_IF_PRESENT || optionEnum == OptionEnum.SET_IF_ABSENT) {
+                if (optionEnum == OptionEnum.SET || optionEnum == OptionEnum.SET_IF_PRESENT) {
                     if (msg.getVal() == null) {
                         return new SubmitResponse(OperationState.FAIL, null, msg.getId(), "value不能为空".getBytes(StandardCharsets.UTF_8));
                     }
                     DefaultValue thisValue = new DefaultValue(msg.getVal(), msg.getExpireTime() == null || msg.getExpireTime() < 0 ? -1 : (System.currentTimeMillis() + msg.getExpireTime()));
                     msg.setVal(valueSerializer.serialize(thisValue));
-                } else if (optionEnum == OptionEnum.INCR || optionEnum == OptionEnum.DECR) {
+                } else if (optionEnum == OptionEnum.INCR || optionEnum == OptionEnum.DECR || optionEnum == OptionEnum.EXPIRE) {
                     DefaultValue thisValue = new DefaultValue(msg.getVal(), msg.getExpireTime() == null || msg.getExpireTime() < 0 ? -1 : (System.currentTimeMillis() + msg.getExpireTime()));
                     msg.setVal(valueSerializer.serialize(thisValue));
                 }

@@ -10,6 +10,7 @@ import org.top.exception.RaftException;
 import org.top.models.LogEntry;
 import org.top.models.PersistentStateModel;
 import org.top.rpc.codec.ProtoBufSerializer;
+import org.top.rpc.codec.Serializer;
 import org.top.rpc.utils.PropertiesUtil;
 import org.top.utils.DataConstants;
 
@@ -36,6 +37,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     private final static byte[] SERIAL_NUMBER_VAL = "val".getBytes(StandardCharsets.UTF_8);
     private static ProtoBufSerializer<String> serializer = new ProtoBufSerializer<>();
     private static ProtoBufSerializer<DefaultValue> cmdValueSerializer = new ProtoBufSerializer<>();
+    private Serializer<CompareValue> compareValueSerializer = new ProtoBufSerializer<>();
     private static TransactionDB rocksDB;
 
     static {
@@ -79,20 +81,82 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
             }
             switch (optionEnum) {
                 case SET:
+                    //修改
                     set(logEntry.getKey(), logEntry.getVal(), transaction);
                     result.setData(DataConstants.TRUE);
                     break;
                 case DEL:
+                    //删除
                     delete(logEntry.getKey(), transaction);
                     break;
                 case RESET_INCR:
-                case RESET_DECR:
-                case INCR:
-                case DECR: {
-                    byte[] old = optionEnum == OptionEnum.RESET_INCR || optionEnum == OptionEnum.RESET_DECR ? null : get(logEntry.getKey(), transaction);
-                    DefaultValue value = calculation(optionEnum, old, logEntry.getVal());
+                case RESET_DECR: {
+                    //比较旧值，一致则重置再操作，不一致则在当前基础上操作
+                    byte[] current = get(logEntry.getKey(), transaction);
+                    DefaultValue value;
+                    CompareValue compareValue = compareValueSerializer.deserialize(logEntry.getVal(), new CompareValue());
+                    if (Arrays.equals(compareValue.getCompare(), current)) {
+                        //和旧值一致，说明期间没有被修改，直接清空再操作
+                        value = calculation(optionEnum, null, compareValue.getUpdate());
+                    } else {
+                        //不一致，说明已经被修改，则在被修改的基础上操作
+                        value = calculation(optionEnum, current, compareValue.getUpdate());
+                    }
                     result.setData(value.getValue());
                     set(logEntry.getKey(), cmdValueSerializer.serialize(value), transaction);
+                }
+                break;
+                case INCR:
+                case DECR: {
+                    //自增/自减
+                    byte[] current = get(logEntry.getKey(), transaction);
+                    DefaultValue value = calculation(optionEnum, current, logEntry.getVal());
+                    result.setData(value.getValue());
+                    set(logEntry.getKey(), cmdValueSerializer.serialize(value), transaction);
+                }
+                break;
+                case EXPIRE: {
+                    //设置过期时间
+                    byte[] current = get(logEntry.getKey(), transaction);
+                    if (current != null) {
+                        DefaultValue currentValue = cmdValueSerializer.deserialize(current, new DefaultValue());
+                        DefaultValue update = cmdValueSerializer.deserialize(logEntry.getVal(), new DefaultValue());
+                        currentValue.setExpireTime(update.getExpireTime());
+                        result.setData(DataConstants.TRUE);
+                        set(logEntry.getKey(), cmdValueSerializer.serialize(currentValue), transaction);
+                    } else {
+                        result.setData(DataConstants.FALSE);
+                    }
+
+                }
+                break;
+                case COMPARE_AND_DEL: {//比较再删除,用于系统删除过期key
+                    byte[] current = get(logEntry.getKey(), transaction);
+                    if (Arrays.equals(current, logEntry.getVal())) {
+                        delete(logEntry.getKey(), transaction);
+                    }
+                }
+                break;
+                case SET_IF_ABSENT: {
+                    byte[] current = get(logEntry.getKey(), transaction);
+                    CompareValue compareValue = compareValueSerializer.deserialize(logEntry.getVal(), new CompareValue());
+                    if (current == null || Arrays.equals(current, compareValue.getCompare())) {
+                        //不存在 或者值没变
+                        set(logEntry.getKey(), compareValue.getUpdate(), transaction);
+                        result.setData(DataConstants.TRUE);
+                    } else {
+                        //值存在或者改变了，都不能再操作
+                        result.setData(DataConstants.FALSE);
+                    }
+                }
+                break;
+                case SET_IF_PRESENT: {
+                    if (get(logEntry.getKey(), transaction) == null) {
+                        result.setData(DataConstants.FALSE);
+                    } else {
+                        set(logEntry.getKey(), logEntry.getVal(), transaction);
+                        result.setData(DataConstants.TRUE);
+                    }
                 }
                 break;
                 default:
@@ -148,7 +212,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
             }
         } else {
             if (val == null) {
-                bytes = optionEnum == OptionEnum.INCR ? DataConstants.POSITIVE_ONE : DataConstants.NEGATIVE_ONE;
+                bytes = optionEnum == OptionEnum.INCR || optionEnum == OptionEnum.RESET_INCR ? DataConstants.POSITIVE_ONE : DataConstants.NEGATIVE_ONE;
             } else {
                 bytes = serializer.serialize(Long.toString(calculation(optionEnum, 0, temp)));
             }
@@ -158,7 +222,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     }
 
     private long calculation(OptionEnum optionEnum, long old, long val) {
-        return optionEnum == OptionEnum.INCR ? old + val : old - val;
+        return optionEnum == OptionEnum.INCR || optionEnum == OptionEnum.RESET_INCR ? old + val : old - val;
     }
 
     @Override
@@ -227,7 +291,11 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
     public void save(LogEntry logEntry) throws Exception {
         OptionEnum optionEnum = OptionEnum.getByCode(logEntry.getOption());
         if (optionEnum == null) {
+            snapshotLoad.updateTermAndIndex(logEntry.getTerm(), logEntry.getIndex());
             return;
+        }
+        if (optionEnum == OptionEnum.UP) {
+            snapshotLoad.updateTermAndIndex(logEntry.getTerm(), logEntry.getIndex());
         }
         byte[] idKey = addPrefix(SERIAL_NUMBER_PRE, logEntry.getId().getBytes(StandardCharsets.UTF_8));
         byte[] rs = rocksDB.get(idKey);
@@ -242,26 +310,89 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
             rocksDB.delete(idKey);
             return;
         }
-        switch (optionEnum) {
-            case SET:
-                snapshotLoad.set(addPrefix(STRING, logEntry.getKey()), logEntry.getVal(), logEntry.getTerm(), logEntry.getIndex());
-                break;
-            case DEL:
-                snapshotLoad.del(addPrefix(STRING, logEntry.getKey()), logEntry.getTerm(), logEntry.getIndex());
-                break;
-            case RESET_INCR:
-            case RESET_DECR:
-            case INCR:
-            case DECR:
-                try {
-                    byte[] old = optionEnum == OptionEnum.RESET_INCR || optionEnum == OptionEnum.RESET_DECR ? null : snapshotLoad.get(logEntry.getKey());
-                    DefaultValue value = calculation(optionEnum, old, logEntry.getVal());
-                    snapshotLoad.set(addPrefix(STRING, logEntry.getKey()), cmdValueSerializer.serialize(value), logEntry.getTerm(), logEntry.getIndex());
-                } catch (RaftException ignored) {
+        try {
+            switch (optionEnum) {
+                case SET:
+                    snapshotLoad.set(addPrefix(STRING, logEntry.getKey()), logEntry.getVal(), logEntry.getTerm(), logEntry.getIndex());
+                    break;
+                case DEL:
+                    snapshotLoad.del(addPrefix(STRING, logEntry.getKey()), logEntry.getTerm(), logEntry.getIndex());
+                    break;
+                case EXPIRE: {
+                    //设置过期时间
+                    byte[] key = addPrefix(STRING, logEntry.getKey());
+                    byte[] current = snapshotLoad.get(key);
+                    if (current != null) {
+                        DefaultValue currentValue = cmdValueSerializer.deserialize(current, new DefaultValue());
+                        DefaultValue update = cmdValueSerializer.deserialize(logEntry.getVal(), new DefaultValue());
+                        currentValue.setExpireTime(update.getExpireTime());
+                        snapshotLoad.set(key, cmdValueSerializer.serialize(currentValue), logEntry.getTerm(), logEntry.getIndex());
+                    } else {
+                        snapshotLoad.updateTermAndIndex(logEntry.getTerm(), logEntry.getIndex());
+                    }
 
                 }
+                case COMPARE_AND_DEL: {//比较再删除,用于系统删除过期key
+                    byte[] key = addPrefix(STRING, logEntry.getKey());
+                    byte[] current = snapshotLoad.get(key);
+                    if (Arrays.equals(current, logEntry.getVal())) {
+                        snapshotLoad.del(key, logEntry.getTerm(), logEntry.getIndex());
+                    } else {
+                        snapshotLoad.updateTermAndIndex(logEntry.getTerm(), logEntry.getIndex());
+                    }
+                }
                 break;
-            default:
+                case RESET_INCR:
+                case RESET_DECR: {
+                    byte[] key = addPrefix(STRING, logEntry.getKey());
+                    //比较旧值，一致则重置再操作，不一致则在当前基础上操作
+                    byte[] current = snapshotLoad.get(key);
+                    DefaultValue value;
+                    CompareValue compareValue = compareValueSerializer.deserialize(logEntry.getVal(), new CompareValue());
+                    if (Arrays.equals(compareValue.getCompare(), current)) {
+                        //和旧值一致，说明期间没有被修改，直接清空再操作
+                        value = calculation(optionEnum, null, compareValue.getUpdate());
+                    } else {
+                        //不一致，说明已经被修改，则在被修改的基础上操作
+                        value = calculation(optionEnum, current, compareValue.getUpdate());
+                    }
+                    snapshotLoad.set(key, cmdValueSerializer.serialize(value), logEntry.getTerm(), logEntry.getIndex());
+                }
+                break;
+                case INCR:
+                case DECR: {
+                    byte[] key = addPrefix(STRING, logEntry.getKey());
+                    byte[] old = snapshotLoad.get(key);
+                    DefaultValue value = calculation(optionEnum, old, logEntry.getVal());
+                    snapshotLoad.set(key, cmdValueSerializer.serialize(value), logEntry.getTerm(), logEntry.getIndex());
+                }
+                break;
+                case SET_IF_ABSENT: {
+                    byte[] key = addPrefix(STRING, logEntry.getKey());
+                    byte[] current = snapshotLoad.get(key);
+                    CompareValue compareValue = compareValueSerializer.deserialize(logEntry.getVal(), new CompareValue());
+                    if (current == null || Arrays.equals(current, compareValue.getCompare())) {
+                        //不存在 或者值没变
+                        snapshotLoad.set(key, compareValue.getUpdate(), logEntry.getTerm(), logEntry.getIndex());
+                    } else {
+                        snapshotLoad.updateTermAndIndex(logEntry.getTerm(), logEntry.getIndex());
+                    }
+                }
+                break;
+                case SET_IF_PRESENT: {
+                    byte[] key = addPrefix(STRING, logEntry.getKey());
+                    if (snapshotLoad.get(key) != null) {
+                        snapshotLoad.set(key, logEntry.getVal(), logEntry.getTerm(), logEntry.getIndex());
+                    } else {
+                        snapshotLoad.updateTermAndIndex(logEntry.getTerm(), logEntry.getIndex());
+                    }
+                }
+                break;
+                default:
+            }
+        } catch (RaftException e) {
+            log.info("快照执行异常", e);
+            snapshotLoad.updateTermAndIndex(logEntry.getTerm(), logEntry.getIndex());
         }
         rocksDB.delete(idKey);
     }

@@ -18,8 +18,10 @@ public enum OptionEnum {
      * 操作
      */
     GET("GET", "获取"),
+    EXPIRE("EXPIRE", "设置过期时间"),
     SET("SET", "添加"),
     DEL("DEL", "删除"),
+    COMPARE_AND_DEL("COMPARE_AND_DEL", "比较再删除"),
     INCR("INCR", "自增"),
     RESET_INCR("RESET_INCR", "重置再自增"),
     DECR("DECR", "自减"),

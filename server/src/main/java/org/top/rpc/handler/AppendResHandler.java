@@ -33,9 +33,6 @@ public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> 
         InetSocketAddress socketAddress = (InetSocketAddress) ctx0.channel().remoteAddress();
         followerNode = NodeGroup.getNodeGroup().getNode(new Node(socketAddress.getAddress().getHostAddress(), socketAddress.getPort()));
         log.info("建立连接：{}", followerNode);
-        if (followerNode != null) {
-            ClientNum.add();
-        }
     }
 
     @Override
@@ -43,7 +40,7 @@ public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> 
         super.channelInactive(ctx);
         if (followerNode != null) {
             SnapshotExec.getInstance().unRead(followerNode);
-            ClientNum.closeNotifyAll();
+            ClientNum.closeNotifyAll(followerNode);
         }
         log.info("断开连接：{}", followerNode);
     }
@@ -53,6 +50,7 @@ public class AppendResHandler extends BaseMessageHandler<AppendEntriesResponse> 
         if (FollowerConvert.convertFollower(msg.getTerm())) {
             return;
         }
+        ClientNum.add(followerNode);
         if (msg.isSuccess()) {
             Map<Node, Long> matchIndex = RaftServerData.leaderState.getMatchIndex();
             matchIndex.put(followerNode, msg.getIndex());

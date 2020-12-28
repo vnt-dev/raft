@@ -39,6 +39,12 @@ public class DefaultValueOperations<V> implements ValueOperations<V> {
     }
 
     @Override
+    public boolean expire(String key, long timeout) {
+        byte[] bytes = cmdExecutor.cmd(OptionEnum.EXPIRE, defaultSer.serialize(key), null, timeout);
+        return Arrays.equals(bytes, DataConstants.TRUE);
+    }
+
+    @Override
     public void set(String key, V v) {
         this.set(key, v, null);
     }
