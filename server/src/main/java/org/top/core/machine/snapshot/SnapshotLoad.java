@@ -33,6 +33,9 @@ public class SnapshotLoad {
         init();
     }
 
+    /**
+     * 初始化数据
+     */
     public static void init() {
         Options options = new Options();
         options.setCreateIfMissing(true);
@@ -45,6 +48,11 @@ public class SnapshotLoad {
         }
     }
 
+    /**
+     * 重置数据
+     *
+     * @throws RocksDBException 持久化异常
+     */
     public void reset() throws RocksDBException {
         RocksIterator iterator = snapshotDB.newIterator();
         iterator.seekToFirst();
@@ -55,6 +63,15 @@ public class SnapshotLoad {
         snapshotDB.delete(last);
     }
 
+    /**
+     * 设置快照
+     *
+     * @param key   键
+     * @param value 值
+     * @param term  任期
+     * @param index 索引
+     * @throws Exception 执行异常
+     */
     public void set(byte[] key, byte[] value, int term, long index) throws Exception {
         Transaction transaction = snapshotDB.beginTransaction(new WriteOptions());
         try {
@@ -68,6 +85,13 @@ public class SnapshotLoad {
         }
     }
 
+    /**
+     * 保存任期和索引
+     *
+     * @param term  任期值
+     * @param index 索引
+     * @throws Exception
+     */
     public void updateTermAndIndex(int term, long index) throws Exception {
         Transaction transaction = snapshotDB.beginTransaction(new WriteOptions());
         try {
@@ -80,20 +104,47 @@ public class SnapshotLoad {
         }
     }
 
+    /**
+     * 获取key
+     *
+     * @param key 键
+     * @return 值
+     * @throws RocksDBException 获取异常
+     */
     public byte[] get(byte[] key) throws RocksDBException {
         return snapshotDB.get(key);
     }
 
+    /**
+     * 获取快照存储的任期
+     *
+     * @return 快照存储的任期
+     * @throws Exception 执行异常
+     */
     public int getTerm() throws Exception {
         byte[] term = snapshotDB.get(CURRENT_TERM_KEY);
         return term == null ? 0 : toInt(term);
     }
 
+    /**
+     * 获取快照的索引值
+     *
+     * @return 索引值
+     * @throws Exception 执行异常
+     */
     public long getIndex() throws Exception {
         byte[] index = snapshotDB.get(LAST_INDEX_KEY);
         return index == null ? 0 : toLong(index);
     }
 
+    /**
+     * 删除key
+     *
+     * @param key   key
+     * @param term  任期值
+     * @param index 索引值
+     * @throws Exception 执行异常
+     */
     public void del(byte[] key, int term, long index) throws Exception {
         Transaction transaction = snapshotDB.beginTransaction(new WriteOptions());
         try {
@@ -107,6 +158,13 @@ public class SnapshotLoad {
         }
     }
 
+    /**
+     * 获取一个区域的快照数据
+     *
+     * @param startKey 起始key
+     * @param maxLen   最大长度
+     * @return 快照数据集合
+     */
     public LinkedList<KvEntity> get(byte[] startKey, int maxLen) {
         RocksIterator rocksIterator = snapshotDB.newIterator();
         if (startKey == null) {

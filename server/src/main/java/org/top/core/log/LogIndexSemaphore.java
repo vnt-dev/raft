@@ -29,15 +29,29 @@ public class LogIndexSemaphore {
         return logIndexSemaphore;
     }
 
+    /**
+     * 增加消息处理监听
+     *
+     * @param id      消息id
+     * @param channel 连接通道
+     */
     public void addListener(String id, Channel channel) {
         map.put(id, channel);
     }
 
+    /**
+     * 移除监听
+     *
+     * @param channel 通道
+     */
     public void remove(Channel channel) {
         map.entrySet()
                 .removeIf(entry -> entry.getValue().equals(channel));
     }
 
+    /**
+     * 启动消息推送循环
+     */
     public void startLoop() {
         new Thread(() -> {
             //noinspection InfiniteLoopStatement
@@ -55,6 +69,11 @@ public class LogIndexSemaphore {
         }, "operation-facade-thread").start();
     }
 
+    /**
+     * 放入已处理完毕消息
+     *
+     * @param result 处理结果
+     */
     public void offer(MachineResult result) {
         blockingQueue.offer(result);
     }

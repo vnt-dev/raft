@@ -19,6 +19,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
+ * 客户端提交日志处理
+ *
  * @author lubeilin
  * @date 2020/11/19
  */
@@ -36,6 +38,12 @@ public class OperationFacadeImpl implements OperationFacade {
 
     }
 
+    /**
+     * 判断是否过期
+     *
+     * @param time 过期时间
+     * @return 是否过期
+     */
     private boolean isExpire(long time) {
         return time > 0 && time <= System.currentTimeMillis();
     }
@@ -47,19 +55,21 @@ public class OperationFacadeImpl implements OperationFacade {
             if (msg.getKey() == null) {
                 return new SubmitResponse(OperationState.FAIL, null, msg.getId(), "key不能为空".getBytes(StandardCharsets.UTF_8));
             }
+            //判断当前节点状态是否正常
             if (RaftServerData.isUp() && ClientNum.getNum() >= NodeGroup.getNodeGroup().majority() - 1) {
                 OptionEnum optionEnum = OptionEnum.getByCode(msg.getOption());
                 if (optionEnum == null) {
                     return new SubmitResponse(OperationState.FAIL, null, msg.getId(), "操作命令错误".getBytes(StandardCharsets.UTF_8));
                 }
                 if (optionEnum != OptionEnum.SET) {
+                    //获取状态机旧值
                     byte[] old = stateMachine.get(msg.getKey());
                     DefaultValue oldValue = old == null ? null : valueSerializer.deserialize(old, new DefaultValue());
                     switch (optionEnum) {
                         case GET:
                             if (oldValue != null) {
                                 if (isExpire(oldValue.getExpireTime())) {
-                                    //过期了，要走删除key的流程
+                                    //过期了，要走删除key的流程，使用比较再删除，防止错删
                                     msg.setOption(OptionEnum.COMPARE_AND_DEL.getCode());
                                     optionEnum = OptionEnum.COMPARE_AND_DEL;
                                     msg.setVal(old);
@@ -79,7 +89,7 @@ public class OperationFacadeImpl implements OperationFacade {
                             if (oldValue == null) {
                                 return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), DataConstants.FALSE);
                             } else if (isExpire(oldValue.getExpireTime())) {
-                                //过期了，要走删除key的流程
+                                //过期了，要走删除key的流程，使用比较再删除，防止错删
                                 msg.setOption(OptionEnum.COMPARE_AND_DEL.getCode());
                                 optionEnum = OptionEnum.COMPARE_AND_DEL;
                                 msg.setVal(old);
@@ -99,7 +109,7 @@ public class OperationFacadeImpl implements OperationFacade {
                         case HAS_KEY:
                             if (oldValue != null) {
                                 if (isExpire(oldValue.getExpireTime())) {
-                                    //过期了，要走删除key的流程
+                                    //过期了，要走删除key的流程，使用比较再删除，防止错删
                                     msg.setOption(OptionEnum.COMPARE_AND_DEL.getCode());
                                     optionEnum = OptionEnum.COMPARE_AND_DEL;
                                     msg.setVal(old);
@@ -119,6 +129,7 @@ public class OperationFacadeImpl implements OperationFacade {
                                     return new SubmitResponse(OperationState.FAIL, null, msg.getId(), "value不能为空".getBytes(StandardCharsets.UTF_8));
                                 }
                                 DefaultValue thisValue = new DefaultValue(msg.getVal(), msg.getExpireTime() == null || msg.getExpireTime() < 0 ? -1 : (System.currentTimeMillis() + msg.getExpireTime()));
+                                //这里还是要带上旧值，用于最终执行状态机时做比较
                                 CompareValue compareValue = new CompareValue(old, valueSerializer.serialize(thisValue));
                                 msg.setVal(compareValueSerializer.serialize(compareValue));
                             }
@@ -129,7 +140,7 @@ public class OperationFacadeImpl implements OperationFacade {
                                 return new SubmitResponse(OperationState.SUCCESS, null, msg.getId(), DataConstants.FALSE);
                             }
                             if (isExpire(oldValue.getExpireTime())) {
-                                //过期了，要走删除key的流程
+                                //过期了，要走删除key的流程，使用比较再删除，防止错删（key过期了也就说明不存在，走一遍删除，再返回false）
                                 msg.setOption(OptionEnum.COMPARE_AND_DEL.getCode());
                                 optionEnum = OptionEnum.COMPARE_AND_DEL;
                                 msg.setVal(old);
@@ -138,6 +149,7 @@ public class OperationFacadeImpl implements OperationFacade {
                         default:
                     }
                 }
+                //计算过期时间
                 if (optionEnum == OptionEnum.SET || optionEnum == OptionEnum.SET_IF_PRESENT) {
                     if (msg.getVal() == null) {
                         return new SubmitResponse(OperationState.FAIL, null, msg.getId(), "value不能为空".getBytes(StandardCharsets.UTF_8));

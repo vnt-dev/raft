@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.top.clientapi.entity.SubmitRequest;
+import org.top.exception.RaftException;
 import org.top.models.LogEntry;
 import org.top.models.PersistentStateModel;
 
@@ -26,10 +27,14 @@ public class AppendLogEntriesExec {
         return logEntriesExec;
     }
 
+    /**
+     * 启动追加日志循环
+     */
     public void startLoop() {
         new Thread(() -> {
             log.info("追加日志线程启动");
             //noinspection InfiniteLoopStatement
+            //使用双重循环来动态调整一次rpc中包含的日志数量
             for (; ; ) {
                 try {
                     SubmitRequest request = blockingQueue.take();
@@ -37,6 +42,7 @@ public class AppendLogEntriesExec {
                         blockingQueue.clear();
                         continue;
                     }
+                    //优先将缓存的日志进行持久化
                     do {
                         PersistentStateModel model = PersistentStateModel.getModel();
                         LogEntry logEntry = new LogEntry();
@@ -46,6 +52,9 @@ public class AppendLogEntriesExec {
                         logEntry.setOption(request.getOption());
                         model.pushLast(logEntry);
                     } while ((request = blockingQueue.poll()) != null);
+                    //持久化结束才进行日志广播，如果上面循环执行完了，说明接收日志的速度<持久化日志的速度，这时候马上广播日志可以降低响应延迟
+                    // 如果上面的循环一直执行，说明并发量太大已经没办法主动广播日志了，
+                    // 这时候会由心跳进行被动广播，从而增大吞吐量
                     appendEntriesComponent.broadcastAppendEntries();
                 } catch (Exception e) {
                     log.info("追加日志失败", e);
@@ -55,6 +64,8 @@ public class AppendLogEntriesExec {
     }
 
     public void signal(SubmitRequest msg) {
-        blockingQueue.offer(msg);
+        if (!blockingQueue.offer(msg)) {
+            throw new RaftException("缓存日志已满");
+        }
     }
 }

@@ -5,6 +5,8 @@ import org.top.clientapi.entity.OperationState;
 import java.nio.charset.StandardCharsets;
 
 /**
+ * 默认响应处理
+ *
  * @author lubeilin
  * @date 2020/12/19
  */
@@ -21,6 +23,7 @@ public abstract class DefaultResponseCallBack<V> implements ResponseCallback {
         if (state != OperationState.SUCCESS) {
             if (bytes == null) {
                 System.out.println(state);
+                resultCallback.fail(null);
                 return;
             }
             resultCallback.fail(new String(bytes, StandardCharsets.UTF_8));

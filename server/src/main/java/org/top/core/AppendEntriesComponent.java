@@ -47,12 +47,20 @@ public class AppendEntriesComponent {
 
     }
 
+    /**
+     * 往对应节点放入心跳
+     *
+     * @param node 节点
+     */
     public void pushHeartbeat(Node node) {
         if (!blockingQueue.contains(node)) {
             blockingQueue.offer(node);
         }
     }
 
+    /**
+     * 启动心跳发送循环
+     */
     public void startHeartbeatLoop() {
         new Thread(() -> {
             for (; ; ) {
@@ -70,6 +78,9 @@ public class AppendEntriesComponent {
         return appendEntriesComponent;
     }
 
+    /**
+     * 广播日志条目
+     */
     public void broadcastAppendEntries() {
         if (cacheLogNum >= 0) {
             RpcClient.getRpcClient().sendAll(node -> appendRequest(node, false), node -> snapshotExec.unRead(node));
@@ -80,7 +91,11 @@ public class AppendEntriesComponent {
         RpcClient.getRpcClient().sendOne(node, n -> appendRequest(n, true), n -> snapshotExec.unRead(n));
     }
 
-
+    /**
+     * 广播主节点上线通知
+     *
+     * @throws Exception 执行异常
+     */
     public void broadcastLeader() throws Exception {
         LogEntry logEntry = new LogEntry();
         logEntry.setOption(OptionEnum.UP.getCode());
@@ -88,6 +103,14 @@ public class AppendEntriesComponent {
         persistentState.pushLast(logEntry);
     }
 
+    /**
+     * 获取一个节点需要发送的消息体
+     *
+     * @param node      节点
+     * @param heartbeat 是否是心跳
+     * @return 需要发送的日志
+     * @throws Exception 执行异常
+     */
     public BaseMessage appendRequest(Node node, boolean heartbeat) throws Exception {
         if (heartbeat) {
             if (System.currentTimeMillis() < timeMap.getOrDefault(node, 0L) + heartbeatTime) {
@@ -144,6 +167,13 @@ public class AppendEntriesComponent {
         return request;
     }
 
+    /**
+     * 获取下一批快照
+     *
+     * @param lastKey 下一个key
+     * @return 一批快照数据
+     * @throws Exception 获取异常
+     */
     public SnapshotReq snapshotReq(byte[] lastKey) throws Exception {
         SnapshotReq snapshotReq = new SnapshotReq();
         snapshotReq.setFirst(lastKey == null);

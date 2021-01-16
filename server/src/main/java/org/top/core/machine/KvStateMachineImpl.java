@@ -81,17 +81,17 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
             }
             switch (optionEnum) {
                 case SET:
-                    //修改
+                    //修改命令直接执行
                     set(logEntry.getKey(), logEntry.getVal(), transaction);
                     result.setData(DataConstants.TRUE);
                     break;
                 case DEL:
-                    //删除
+                    //删除命令直接执行
                     delete(logEntry.getKey(), transaction);
                     break;
                 case RESET_INCR:
                 case RESET_DECR: {
-                    //比较旧值，一致则重置再操作，不一致则在当前基础上操作
+                    //比较旧值，一致则重置再操作（一致说明正常过期，要删掉），不一致则在当前基础上操作
                     byte[] current = get(logEntry.getKey(), transaction);
                     DefaultValue value;
                     CompareValue compareValue = compareValueSerializer.deserialize(logEntry.getVal(), new CompareValue());
@@ -130,7 +130,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
 
                 }
                 break;
-                case COMPARE_AND_DEL: {//比较再删除,用于系统删除过期key
+                case COMPARE_AND_DEL: {//比较再删除,用于系统删除过期key，这是系统转换的命令，执行结果为空即可
                     byte[] current = get(logEntry.getKey(), transaction);
                     if (Arrays.equals(current, logEntry.getVal())) {
                         delete(logEntry.getKey(), transaction);
@@ -138,6 +138,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
                 }
                 break;
                 case SET_IF_ABSENT: {
+                    //不存在则修改，需要比较旧值
                     byte[] current = get(logEntry.getKey(), transaction);
                     CompareValue compareValue = compareValueSerializer.deserialize(logEntry.getVal(), new CompareValue());
                     if (current == null || Arrays.equals(current, compareValue.getCompare())) {
@@ -151,6 +152,7 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
                 }
                 break;
                 case SET_IF_PRESENT: {
+                    //存在则修改，因为key过期时会走删除命令，不归这管
                     if (get(logEntry.getKey(), transaction) == null) {
                         result.setData(DataConstants.FALSE);
                     } else {
@@ -286,7 +288,12 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
         return key;
     }
 
-
+    /**
+     * 快照生成逻辑，命令处理和执行状态机的一致就行，就是把状态机数据复制到快照，然后删除日志、删序列号
+     *
+     * @param logEntry 日志条目
+     * @throws Exception 执行异常
+     */
     @Override
     public void save(LogEntry logEntry) throws Exception {
         OptionEnum optionEnum = OptionEnum.getByCode(logEntry.getOption());
@@ -300,13 +307,17 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
         byte[] idKey = addPrefix(SERIAL_NUMBER_PRE, logEntry.getId().getBytes(StandardCharsets.UTF_8));
         byte[] rs = rocksDB.get(idKey);
         if (rs == null) {
-            //没有序列号说明该指令已经执行过了，不需要重复执行
+            //没有序列号说明该指令已经执行过了，不需要重复执行，走到这有两种情况
+            // 1.这个方法走完后删日志失败，导致日志重复执行序列号为空，这时候要忽略；
+            // 2.命令本身有重复，也就是两条日志记录了同一条命令，因为上一条日志已经把这个命令执行了，所以不重复执行
             log.info("已生成快照:{}", logEntry.getIndex());
             return;
         }
         long lastIndex = snapshotLoad.getIndex();
+        //快照中已复制的日志以日志索引为准
         if (lastIndex >= logEntry.getIndex()) {
             //最终索引大于当前的日志索引，说明该日志已经执行过了
+            //走到这，说明上次持久化日志到快照之后没成功删掉序列号，要在这拦掉防止重复执行同一条日志
             rocksDB.delete(idKey);
             return;
         }
@@ -391,9 +402,11 @@ public class KvStateMachineImpl implements StateMachine, SnapshotService {
                 default:
             }
         } catch (RaftException e) {
+            //这个异常时raft过程中正常触发的，生成快照时不用管直接忽略就行，但是快照中任期和索引还是要变的，代表这条日志已经处理过了
             log.info("快照执行异常", e);
             snapshotLoad.updateTermAndIndex(logEntry.getTerm(), logEntry.getIndex());
         }
+        //删除序列号，标志着这条日志成功放到快照
         rocksDB.delete(idKey);
     }
 

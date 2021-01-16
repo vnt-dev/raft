@@ -20,6 +20,12 @@ public class AsyncResultEntity {
     private SubmitRequest request;
     private volatile ResponseCallback responseCallback;
 
+    /**
+     * 异步响应处理
+     *
+     * @param response 响应体
+     * @return 是否存在异步消息
+     */
     public static boolean async(SubmitResponse response) {
         AsyncResultEntity asyncResultEntity = msgMap.remove(response.getId());
         if (asyncResultEntity != null) {
